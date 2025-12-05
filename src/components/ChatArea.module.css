@@ -1,0 +1,66 @@
+/* ChatArea Mobile Responsive Styles */
+
+@media (max-width: 640px) {
+  .messageContainer {
+    padding: 10px 12px !important;
+  }
+
+  .messageBubble {
+    max-width: 80% !important;
+    padding: 10px 12px !important;
+    font-size: 15px !important;
+  }
+
+  .messageContent {
+    font-size: 15px !important;
+    line-height: 1.4 !important;
+  }
+
+  .messageTime {
+    font-size: 11px !important;
+  }
+
+  .inputArea {
+    padding: 12px !important;
+  }
+
+  .messageInput {
+    padding: 11px 14px !important;
+    font-size: 16px !important; /* Prevent iOS zoom */
+    min-height: 44px !important;
+  }
+
+  .sendButton {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .emojiPicker {
+    width: 280px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+
+  .contextMenu {
+    min-width: 180px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .messageBubble {
+    max-width: 85% !important;
+    padding: 9px 11px !important;
+    font-size: 14px !important;
+  }
+
+  .messageContent {
+    font-size: 14px !important;
+  }
+
+  .sendButton {
+    width: 40px !important;
+    height: 40px !important;
+  }
+}
