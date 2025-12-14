@@ -12,6 +12,9 @@ interface NotificationState {
   markMultipleAsSeen: (notificationIds: string[]) => Promise<void>;
   markAllAsSeen: () => Promise<void>;
   clearError: () => void;
+
+  // Real-time event handlers
+  handleNewNotification: (notification: any) => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
@@ -77,4 +80,36 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  // Real-time event handlers
+  handleNewNotification: (notification: any) => {
+    console.log('[NotificationStore] New notification:', notification);
+    set((state) => {
+      // Convert backend notification format to frontend Notification type
+      const newNotification: Notification = {
+        id: notification.messageId, // Using messageId as notification ID for now
+        messageId: notification.messageId,
+        chatId: notification.chatId,
+        chatName: notification.chatName,
+        chatAvatar: notification.chatAvatar,
+        senderName: notification.senderName,
+        content: notification.content,
+        sentTime: notification.sentTime,
+        seen: false,
+        fileUrl: notification.fileUrl,
+      };
+
+      // Add to beginning of array (most recent first)
+      // Check if notification already exists to avoid duplicates
+      const exists = state.notifications.some(n =>
+        n.chatId === newNotification.chatId &&
+        n.sentTime === newNotification.sentTime
+      );
+
+      if (!exists) {
+        return { notifications: [newNotification, ...state.notifications] };
+      }
+      return state;
+    });
+  },
 }));

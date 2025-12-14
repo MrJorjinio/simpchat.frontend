@@ -1,4 +1,5 @@
 import { Plus, Users, Lock } from 'lucide-react';
+import { useChatStore } from '../stores/chatStore';
 
 export interface Group {
   id: string;
@@ -17,6 +18,8 @@ interface GroupsListProps {
 }
 
 export const GroupsList = ({ groups, selectedGroupId, onSelectGroup, onCreateGroup }: GroupsListProps) => {
+  const { getOnlineMembersCount } = useChatStore();
+
   return (
     <div style={{ padding: '16px 0' }}>
       <div style={{ padding: '0 8px', marginBottom: '16px' }}>
@@ -119,7 +122,18 @@ export const GroupsList = ({ groups, selectedGroupId, onSelectGroup, onCreateGro
             )}
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Users className="w-3 h-3" />
-              {group.memberCount} members
+              {(() => {
+                const onlineCount = getOnlineMembersCount(group.id);
+                return onlineCount > 0 ? (
+                  <>
+                    <span style={{ color: '#51cf66', fontWeight: 600 }}>{onlineCount} online</span>
+                    <span> • </span>
+                    <span>{group.memberCount} members</span>
+                  </>
+                ) : (
+                  <span>{group.memberCount} members</span>
+                );
+              })()}
             </p>
           </button>
         ))}

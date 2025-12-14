@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { userService } from '../services/user.service';
 import type { User } from '../types/api.types';
+import { toast } from './common/Toast';
+import { confirm } from './common/ConfirmModal';
 import styles from './Dashboard.module.css';
 
 interface AdminPanelProps {
@@ -50,21 +52,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isDarkMode = f
   };
 
   const handleDeleteUser = async (userId: string, username: string) => {
-    if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete User',
+      message: `Are you sure you want to delete user "${username}"? This action cannot be undone and all their data will be permanently deleted.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
 
     try {
       await userService.deleteUser(userId);
       // Reload users
       await loadUsers();
-      alert(`User "${username}" has been deleted successfully.`);
+      toast.success(`User "${username}" has been deleted successfully.`);
     } catch (err: any) {
       console.error('Failed to delete user:', err);
       if (err.response?.status === 403) {
-        alert('Access denied. You need admin privileges to delete users.');
+        toast.error('Access denied. You need admin privileges to delete users.');
       } else {
-        alert('Failed to delete user. Please try again.');
+        toast.error('Failed to delete user. Please try again.');
       }
     }
   };

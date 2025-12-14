@@ -9,7 +9,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   // CORS configuration
-  withCredentials: false, // Set to false if backend allows AllowAnyOrigin
+  withCredentials: true, // Required because backend uses AllowCredentials
 });
 
 // Add token to requests

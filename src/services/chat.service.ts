@@ -38,30 +38,40 @@ export const chatService = {
     return normalizeChat(rawChat);
   },
 
-  updateChat: async (chatId: string, formData: FormData) => {
-    const response = await api.put<any>(`/groups/${chatId}`, formData, {
+  updateChat: async (chatId: string, chatType: 'group' | 'channel', formData: FormData) => {
+    const endpoint = chatType === 'group' ? '/groups' : '/channels';
+    const response = await api.put<any>(endpoint, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      params: { chatId }
     });
     return response.data?.data || response.data;
   },
 
-  deleteChat: async (chatId: string) => {
-    const response = await api.delete<any>(`/groups/${chatId}`);
+  deleteChat: async (chatId: string, chatType: 'group' | 'channel') => {
+    const endpoint = chatType === 'group' ? '/groups' : '/channels';
+    const response = await api.delete<any>(endpoint, {
+      params: { chatId }
+    });
     return response.data?.data || response.data;
   },
 
   joinChat: async (chatId: string, chatType: 'group' | 'channel') => {
     // Backend has different endpoints for groups and channels
-    const endpoint = chatType === 'group'
-      ? `/groups/join?groupId=${chatId}`
-      : `/channels/join?channelId=${chatId}`;
+    const endpoint = chatType === 'group' ? '/groups/join' : '/channels/join';
+    const paramKey = chatType === 'group' ? 'groupId' : 'channelId';
 
-    const response = await api.post<any>(endpoint);
+    const response = await api.post<any>(endpoint, null, {
+      params: { [paramKey]: chatId }
+    });
     return response.data?.data || response.data;
   },
 
-  leaveChat: async (chatId: string) => {
-    const response = await api.post<any>(`/chats/${chatId}/leave`);
+  leaveChat: async (chatId: string, chatType: 'group' | 'channel') => {
+    // Backend uses POST method with chatId query parameter
+    const endpoint = chatType === 'group' ? '/groups/leave' : '/channels/leave';
+    const response = await api.post<any>(endpoint, null, {
+      params: { chatId }
+    });
     return response.data?.data || response.data;
   },
 
@@ -110,35 +120,45 @@ export const chatService = {
   },
 
   banUser: async (chatId: string, userId: string) => {
-    const response = await api.post<any>(`/chats/ban/${userId}`, { chatId });
-    return response.data?.data || response.data;
-  },
-
-  unbanUser: async (chatId: string, userId: string) => {
-    const response = await api.post<any>(`/chats/unban/${userId}`, { chatId });
-    return response.data?.data || response.data;
-  },
-
-  addMemberToGroup: async (groupId: string, userId: string) => {
-    const response = await api.post<any>('/groups/add-member', {
-      groupId,
-      userId,
+    const response = await api.post<any>(`/chats/ban/${userId}`, null, {
+      params: { chatId }
     });
     return response.data?.data || response.data;
   },
 
-  addMemberToChannel: async (channelId: string, userId: string) => {
-    const response = await api.post<any>('/channels/add-member', {
-      channelId,
-      userId,
+  unbanUser: async (chatId: string, userId: string) => {
+    const response = await api.post<any>(`/chats/unban/${userId}`, null, {
+      params: { chatId }
+    });
+    return response.data?.data || response.data;
+  },
+
+  addMemberToGroup: async (chatId: string, addingUserId: string) => {
+    const response = await api.post<any>('/groups/add-member', null, {
+      params: { chatId, addingUserId }
+    });
+    return response.data?.data || response.data;
+  },
+
+  addMemberToChannel: async (chatId: string, addingUserId: string) => {
+    const response = await api.post<any>('/channels/add-member', null, {
+      params: { chatId, addingUserId }
     });
     return response.data?.data || response.data;
   },
 
   updateChatPrivacy: async (chatId: string, privacyType: 'public' | 'private') => {
-    const response = await api.put<any>('/chats/privacy-type', {
-      chatId,
-      privacyType,
+    // Backend expects: 0 = Public, 1 = Private as query parameters
+    const numericPrivacy = privacyType === 'public' ? 0 : 1;
+    const response = await api.put<any>('/chats/privacy-type', null, {
+      params: { chatId, privacyType: numericPrivacy }
+    });
+    return response.data?.data || response.data;
+  },
+
+  addUserPermission: async (chatId: string, userId: string, permissionName: string) => {
+    const response = await api.post<any>('/chats/add-user-permission', null, {
+      params: { chatId, addingUserId: userId, permissionName }
     });
     return response.data?.data || response.data;
   },

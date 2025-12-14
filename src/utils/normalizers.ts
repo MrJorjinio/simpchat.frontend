@@ -63,17 +63,33 @@ export const normalizeChat = (chat: any): Chat => {
 
   console.log('[Normalizer] Normalizing chat:', chat);
 
+  // Normalize privacy: backend enum 0=Public, 1=Private
+  let privacy: 'public' | 'private' | undefined = undefined;
+  if (chat.privacy !== null && chat.privacy !== undefined) {
+    if (typeof chat.privacy === 'number') {
+      privacy = chat.privacy === 0 ? 'public' : 'private';
+    } else if (typeof chat.privacy === 'string') {
+      privacy = chat.privacy.toLowerCase() as 'public' | 'private';
+    }
+  }
+
   return {
     id: chat.id,
     name: chat.name || 'Unknown',
     type: normalizeChatType(chat.type),
     avatar: chat.avatarUrl || chat.avatar || chat.profileImage,
     description: chat.description || '',
-    privacy: chat.privacy as 'public' | 'private',
+    privacy,
     members: (chat.members || []).map((m: any) => ({
       id: m.id || m.userId || m.user?.id,
       userId: m.userId || m.id || m.user?.id,
-      user: m.user || ({ id: m.userId || m.id } as any),
+      user: m.user || ({
+        id: m.userId || m.id,
+        username: m.username || 'Unknown',
+        email: '',
+        onlineStatus: 'offline' as const,
+        lastSeen: new Date().toISOString(),
+      } as any),
       joinedAt: m.joinedAt,
       role: m.role || 'member',
     })),

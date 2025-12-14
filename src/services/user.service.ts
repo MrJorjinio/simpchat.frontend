@@ -47,4 +47,20 @@ export const userService = {
     const response = await api.delete<any>(`/users/${userId}`);
     return response.data?.data || response.data;
   },
+
+  blockUser: async (userId: string) => {
+    const response = await api.post<any>(`/users/block/${userId}`);
+    return response.data?.data || response.data;
+  },
+
+  unblockUser: async (userId: string) => {
+    const response = await api.post<any>(`/users/unblock/${userId}`);
+    return response.data?.data || response.data;
+  },
+
+  getBlockedUsers: async () => {
+    const response = await api.get<any>('/users/blocked');
+    const rawUsers = response.data?.data || response.data;
+    return normalizeUsers(rawUsers);
+  },
 };

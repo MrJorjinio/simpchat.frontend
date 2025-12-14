@@ -1,4 +1,6 @@
 import { UserPlus } from 'lucide-react';
+import { OnlineStatusIndicator } from './common/OnlineStatusIndicator';
+import { useChatStore } from '../stores/chatStore';
 
 export interface DirectMessage {
   id: string;
@@ -18,6 +20,8 @@ interface DirectMessagesListProps {
 }
 
 export const DirectMessagesList = ({ messages, selectedUserId, onSelectUser, onCreateDM }: DirectMessagesListProps) => {
+  const { isUserOnline, getUserLastSeen } = useChatStore();
+
   return (
     <div style={{ padding: '16px 0' }}>
       <div style={{ padding: '0 8px', marginBottom: '16px' }}>
@@ -85,14 +89,11 @@ export const DirectMessagesList = ({ messages, selectedUserId, onSelectUser, onC
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <div
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: dm.isOnline ? '#51cf66' : '#a0aec0',
-                  flexShrink: 0,
-                }}
+              <OnlineStatusIndicator
+                isOnline={isUserOnline(dm.userId)}
+                lastSeen={getUserLastSeen(dm.userId)}
+                size="sm"
+                position="standalone"
               />
               <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, flex: 1 }}>
                 {dm.username}

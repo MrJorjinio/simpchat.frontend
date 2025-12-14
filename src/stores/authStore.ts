@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { User, LoginCredentials } from '../types/api.types';
 import { authService } from '../services/auth.service';
+import { extractErrorMessage } from '../utils/errorHandler';
 
 interface AuthState {
   user: User | null;
@@ -88,7 +89,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: userData, token, isLoading: false });
       console.log('[authStore] Login complete, state updated');
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+      const errorMessage = extractErrorMessage(error, 'Login failed');
       console.error('[authStore] Login error:', errorMessage, error);
       set({ error: errorMessage, isLoading: false });
       throw error;
@@ -133,7 +134,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: userData, token, isLoading: false });
       console.log('[authStore] Registration complete, state updated');
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
+      const errorMessage = extractErrorMessage(error, 'Registration failed');
       console.error('[authStore] Registration error:', errorMessage, error);
       set({ error: errorMessage, isLoading: false });
       throw error;

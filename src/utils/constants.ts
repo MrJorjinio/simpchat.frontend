@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'https://localhost/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://10.30.1.77:5213/api';
 
 export const COLORS = {
   light: {

@@ -1,106 +1,136 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
+import { useThemeStore } from '../stores/themeStore';
 import { chatService } from '../services/chat.service';
 import api from '../services/api';
+import { extractErrorMessage } from '../utils/errorHandler';
 import type { Chat, BackendMessage, User } from '../types/api.types';
 import styles from './Dashboard.module.css';
 import AdminPanel from './AdminPanel';
-
-// UTILITY FUNCTIONS
-const getInitials = (name: string | undefined | null): string => {
-  if (!name || name === 'undefined' || name === 'null') {
-    return '?';
-  }
-  const trimmed = String(name).trim();
-  if (!trimmed || trimmed.length === 0) {
-    return '?';
-  }
-  const words = trimmed.split(/\s+/).filter((w) => w.length > 0);
-  if (words.length === 0) {
-    return '?';
-  }
-  if (words.length === 1) {
-    return words[0][0]?.toUpperCase() || '?';
-  }
-  return words.map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-};
-
-// Avatar component with fallback handling
-interface AvatarProps {
-  src: string | undefined | null;
-  name: string;
-  fallbackClass?: string;
-}
-
-const Avatar: React.FC<AvatarProps> = ({ src, name, fallbackClass }) => {
-  const [showFallback, setShowFallback] = React.useState(!src);
-
-  const handleImageError = () => {
-    setShowFallback(true);
-  };
-
-  if (showFallback || !src) {
-    return <div className={fallbackClass}>{getInitials(name)}</div>;
-  }
-
-  return <img src={src} alt={name} onError={handleImageError} />;
-};
-
-const formatTime = (dateString: string | undefined): string => {
-  if (!dateString) {
-    return 'Unknown';
-  }
-
-  try {
-    const date = new Date(dateString);
-
-    // Check if date is valid
-    if (isNaN(date.getTime())) {
-      console.warn('Invalid date string:', dateString);
-      return 'Invalid date';
-    }
-
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-    if (messageDate.getTime() === today.getTime()) {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-    } else if (messageDate.getTime() === yesterday.getTime()) {
-      return 'Yesterday';
-    } else if (now.getTime() - date.getTime() < 7 * 24 * 60 * 60 * 1000) {
-      return date.toLocaleString('en-US', { weekday: 'short' });
-    }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  } catch (error) {
-    console.error('Error formatting time:', error, dateString);
-    return 'Invalid date';
-  }
-};
-
-const getLastMessagePreview = (chat: Chat): string => {
-  if (!chat.lastMessage) return 'No messages yet';
-  const content = chat.lastMessage.content || '(No content)';
-
-  // For groups and channels, show sender name
-  if (chat.type !== 'dm' && chat.lastMessage.sender) {
-    const senderName = chat.lastMessage.sender.username || 'Unknown';
-    const preview = `${senderName}: ${content}`;
-    return preview.length > 50 ? preview.substring(0, 47) + '...' : preview;
-  }
-
-  return content.length > 50 ? content.substring(0, 47) + '...' : content;
-};
+import { useSignalR } from '../hooks/useSignalR';
+import { FileDropzone } from './common/FileDropzone';
+import { GroupProfileModal } from './modals/GroupProfileModal';
+import { UserProfileViewerModal } from './modals/UserProfileViewerModal';
+import { Sidebar } from './Sidebar';
+import { Avatar } from './common/Avatar';
+import { ChatView } from './ChatView';
+import { SettingsMenu } from './SettingsMenu';
+import { getInitials } from '../utils/helpers';
+import { toast } from './common/Toast';
+import { confirm } from './common/ConfirmModal';
 
 // MODAL COMPONENTS
+
+interface CustomReactionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (name: string, image: File | null) => Promise<void>;
+  isDarkMode?: boolean;
+}
+
+const CustomReactionModal: React.FC<CustomReactionModalProps> = ({ isOpen, onClose, onCreate, isDarkMode = false }) => {
+  const [name, setName] = useState('');
+  const [image, setImage] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    setIsCreating(true);
+    try {
+      await onCreate(name, image);
+      setName('');
+      setImage(null);
+      setPreview(null);
+      onClose();
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className={`${styles.modalOverlay} ${isDarkMode ? styles.darkMode : ''}`} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <h2>Create Custom Reaction</h2>
+          <button className={styles.closeButton} onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className={styles.modalBody}>
+          <div className={styles.formGroup}>
+            <label style={{ color: 'var(--text)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Reaction Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., happy, excited, custom-emoji"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={styles.formInput}
+            />
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              This will be the emoji name (e.g., :happy:)
+            </div>
+          </div>
+          <div className={styles.formGroup}>
+            <label style={{ color: 'var(--text)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Reaction Image (Optional)
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className={styles.formInput}
+              style={{ padding: '8px' }}
+            />
+            {preview && (
+              <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                <img
+                  src={preview}
+                  alt="Preview"
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    objectFit: 'contain',
+                    borderRadius: '8px',
+                    border: '2px solid var(--border)',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button onClick={onClose} className={styles.secondaryButton}>
+            Cancel
+          </button>
+          <button onClick={handleCreate} disabled={!name.trim() || isCreating} className={styles.primaryButton}>
+            {isCreating ? 'Creating...' : 'Create'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface CreateGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, description: string, privacy: string) => Promise<void>;
+  onCreate: (name: string, description: string, privacy: string, avatar?: File | null) => Promise<void>;
   isDarkMode?: boolean;
   isChannel?: boolean;
 }
@@ -109,16 +139,22 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [privacy, setPrivacy] = useState('private');
+  const [avatar, setAvatar] = useState<File | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  const handleAvatarAccepted = (file: File) => {
+    setAvatar(file);
+  };
 
   const handleCreate = async () => {
     if (!name.trim()) return;
     setIsCreating(true);
     try {
-      await onCreate(name, description, privacy);
+      await onCreate(name, description, privacy, avatar);
       setName('');
       setDescription('');
       setPrivacy('private');
+      setAvatar(null);
       onClose();
     } finally {
       setIsCreating(false);
@@ -152,6 +188,13 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
               {name.length}/40 characters
             </div>
+          </div>
+          <div className={styles.formGroup}>
+            <FileDropzone
+              onFileAccepted={handleAvatarAccepted}
+              label={`${isChannel ? 'Channel' : 'Group'} Avatar (Optional)`}
+              helperText="Drag and drop an image, or click to browse"
+            />
           </div>
           <div className={styles.formGroup}>
             <label style={{ color: 'var(--text)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
@@ -192,11 +235,135 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
   );
 };
 
+interface EditGroupModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  chat: Chat | null;
+  onUpdate: (chatId: string, name: string, description: string, privacy: string, avatar?: File | null) => Promise<void>;
+  isDarkMode?: boolean;
+  isChannel?: boolean;
+}
+
+const EditGroupModal: React.FC<EditGroupModalProps> = ({ isOpen, onClose, chat, onUpdate, isDarkMode = false, isChannel = false }) => {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [privacy, setPrivacy] = useState('private');
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && chat) {
+      setName(chat.name || '');
+      setDescription(chat.description || '');
+      setPrivacy(chat.privacy || 'private');
+      setAvatar(null);
+    } else if (!isOpen) {
+      setName('');
+      setDescription('');
+      setPrivacy('private');
+      setAvatar(null);
+    }
+  }, [isOpen, chat]);
+
+  const handleAvatarAccepted = (file: File) => {
+    setAvatar(file);
+  };
+
+  const handleUpdate = async () => {
+    if (!name.trim() || !chat) return;
+    setIsUpdating(true);
+    try {
+      await onUpdate(chat.id, name, description, privacy, avatar);
+      setName('');
+      setDescription('');
+      setPrivacy('private');
+      setAvatar(null);
+      onClose();
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  if (!isOpen || !chat) return null;
+
+  return (
+    <div className={`${styles.modalOverlay} ${isDarkMode ? styles.darkMode : ''}`} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <h2>{isChannel ? 'Edit Channel' : 'Edit Group'}</h2>
+          <button className={styles.closeButton} onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className={styles.modalBody}>
+          <div className={styles.formGroup}>
+            <label style={{ color: 'var(--text)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              {isChannel ? 'Channel' : 'Group'} Name *
+            </label>
+            <input
+              type="text"
+              placeholder={`Enter ${isChannel ? 'channel' : 'group'} name (1-40 characters)`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={40}
+              className={styles.formInput}
+            />
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              {name.length}/40 characters
+            </div>
+          </div>
+          <div className={styles.formGroup}>
+            <FileDropzone
+              onFileAccepted={handleAvatarAccepted}
+              currentPreview={chat.avatar}
+              label={`${isChannel ? 'Channel' : 'Group'} Avatar (Optional)`}
+              helperText="Drag and drop a new image to update, or click to browse"
+            />
+          </div>
+          <div className={styles.formGroup}>
+            <label style={{ color: 'var(--text)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Description (Optional)
+            </label>
+            <textarea
+              placeholder={`Enter ${isChannel ? 'channel' : 'group'} description (max 150 characters)`}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={150}
+              className={styles.formInput}
+              rows={3}
+            />
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              {description.length}/150 characters
+            </div>
+          </div>
+          <div className={styles.formGroup}>
+            <label style={{ color: 'var(--text)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Privacy
+            </label>
+            <select value={privacy} onChange={(e) => setPrivacy(e.target.value)} className={styles.formInput}>
+              <option value="private">Private - Only invited members can join</option>
+              <option value="public">Public - Anyone can search and join</option>
+            </select>
+          </div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button onClick={onClose} className={styles.secondaryButton}>
+            Cancel
+          </button>
+          <button onClick={handleUpdate} disabled={!name.trim() || isUpdating} className={styles.primaryButton}>
+            {isUpdating ? 'Updating...' : 'Update'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
-  onUpdate: (username: string, email: string, description: string, policy: string) => Promise<void>;
+  onUpdate: (username: string, email: string, description: string, policy: string, avatar?: File | null) => Promise<void>;
   isDarkMode?: boolean;
 }
 
@@ -206,6 +373,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
   const [description, setDescription] = useState('');
   const [policy, setPolicy] = useState<'everyone' | 'chatted' | 'nobody'>('everyone');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   // PROPERLY initialize form when modal opens or user changes
   useEffect(() => {
@@ -215,19 +384,27 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
       setEmail(user.email || '');
       setDescription(user.bio || '');
       setPolicy((user.addMePolicy as 'everyone' | 'chatted' | 'nobody') || 'everyone');
+      setAvatar(null);
+      setAvatarPreview(null);
     } else if (!isOpen) {
       // Reset form when closing
       setUsername('');
       setEmail('');
       setDescription('');
       setPolicy('everyone');
+      setAvatar(null);
+      setAvatarPreview(null);
     }
   }, [isOpen, user]);
+
+  const handleAvatarAccepted = (file: File) => {
+    setAvatar(file);
+  };
 
   const handleUpdate = async () => {
     setIsUpdating(true);
     try {
-      await onUpdate(username, email, description, policy);
+      await onUpdate(username, email, description, policy, avatar);
       onClose();
     } finally {
       setIsUpdating(false);
@@ -246,6 +423,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
           </button>
         </div>
         <div className={styles.modalBody}>
+          <div className={styles.formGroup}>
+            <FileDropzone
+              onFileAccepted={handleAvatarAccepted}
+              currentPreview={user?.avatar || avatarPreview}
+              label="Profile Avatar"
+              helperText="Drag and drop your profile picture, or click to browse"
+            />
+          </div>
           <div className={styles.formGroup}>
             <label style={{ color: 'var(--text)', display: 'block', marginBottom: '6px', fontWeight: 600 }}>Username</label>
             <input
@@ -429,21 +614,32 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
                   key={notif.id}
                   onClick={() => handleMarkAsSeen(notif.id)}
                   style={{
-                    padding: '12px',
-                    backgroundColor: notif.isRead ? 'transparent' : 'rgba(59, 130, 246, 0.1)',
-                    borderLeft: notif.isRead ? 'none' : '3px solid var(--accent)',
-                    borderRadius: '6px',
+                    padding: '14px',
+                    background: notif.isRead
+                      ? 'rgba(99, 102, 241, 0.05)'
+                      : 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1))',
+                    border: notif.isRead
+                      ? '1px solid rgba(99, 102, 241, 0.1)'
+                      : '1px solid rgba(99, 102, 241, 0.3)',
+                    borderRadius: '12px',
                     cursor: 'pointer',
                     transition: 'all 0.3s ease',
                     display: 'flex',
-                    gap: '10px',
+                    gap: '12px',
                     alignItems: 'flex-start',
+                    boxShadow: notif.isRead
+                      ? 'none'
+                      : '0 2px 8px rgba(99, 102, 241, 0.15)',
+                    position: 'relative',
+                    overflow: 'hidden',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.opacity = '0.9';
+                    e.currentTarget.style.transform = 'translateX(4px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.2)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.opacity = '1';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                    e.currentTarget.style.boxShadow = notif.isRead ? 'none' : '0 2px 8px rgba(99, 102, 241, 0.15)';
                   }}
                 >
                   {/* Chat Avatar */}
@@ -606,7 +802,7 @@ const UserProfileViewer: React.FC<UserProfileViewerProps> = ({
     if (!userId) {
       console.error('[ProfileViewer] Cannot send message: user ID is missing from user object:', user);
       console.error('[ProfileViewer] All available fields:', Object.keys(user));
-      alert('Error: User ID not found. Please try again.');
+      toast.error('Error: User ID not found. Please try again.');
       return;
     }
 
@@ -626,9 +822,7 @@ const UserProfileViewer: React.FC<UserProfileViewerProps> = ({
       onClose();
     } catch (error) {
       console.error('Failed to send message:', error);
-      console.error('[ProfileViewer] Error type:', typeof error);
-      console.error('[ProfileViewer] Error message:', error instanceof Error ? error.message : String(error));
-      alert('Failed to create conversation. Error: ' + (error instanceof Error ? error.message : String(error)));
+      toast.error(extractErrorMessage(error, 'Failed to create conversation'));
     } finally {
       setIsSending(false);
     }
@@ -744,11 +938,11 @@ const UserProfileViewer: React.FC<UserProfileViewerProps> = ({
                         console.log('[Modal] Join successful');
                       } catch (error) {
                         console.error('[Modal] Join error:', error);
-                        alert('Error joining. Please try again.');
+                        toast.error(extractErrorMessage(error, 'Failed to join'));
                       }
                     } else {
                       console.warn('[Modal] Missing onJoinGroup or chatId:', { onJoinGroup: !!onJoinGroup, chatId });
-                      alert('Unable to join. Missing required information.');
+                      toast.error('Unable to join. Missing required information.');
                     }
                   }}
                   disabled={isJoining}
@@ -791,1780 +985,22 @@ const UserProfileViewer: React.FC<UserProfileViewerProps> = ({
 
 // MAIN COMPONENTS
 
-interface LeftPanelProps {
-  chats: Chat[];
-  currentChat: Chat | null;
-  onSelectChat: (chat: Chat) => void;
-  isLoadingChats: boolean;
-  user: User | null;
-  onLogout: () => void;
-  onMenuOpen: () => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  searchResults: Array<{ id: string; name: string; type: 'user' | 'group' | 'channel'; avatar?: string }>;
-  onSelectSearchResult: (result: any) => void;
-  isSearching: boolean;
-  isDarkMode: boolean;
-  onClearSearch: () => void;
-  isMobileOpen?: boolean;
-  onMobileClose?: () => void;
-}
-
-const LeftPanel: React.FC<LeftPanelProps> = ({
-  chats,
-  currentChat,
-  onSelectChat,
-  isLoadingChats,
-  user,
-  onLogout,
-  onMenuOpen,
-  searchQuery,
-  onSearchChange,
-  searchResults,
-  onSelectSearchResult,
-  isSearching,
-  isDarkMode,
-  onClearSearch,
-  isMobileOpen = false,
-  onMobileClose,
-}) => {
-  const searchBarRef = useRef<HTMLDivElement>(null);
-
-  // Close search results when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchBarRef.current && !searchBarRef.current.contains(event.target as Node)) {
-        onClearSearch();
-      }
-    };
-
-    if (searchQuery) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [searchQuery, onClearSearch]);
-
-  return (
-    <>
-      {/* Mobile Overlay */}
-      {isMobileOpen && (
-        <div
-          className={styles.mobileOverlay}
-          onClick={onMobileClose}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 99,
-            display: 'none',
-          }}
-        />
-      )}
-      <div className={`${styles.leftPanel} ${isDarkMode ? styles.darkMode : ''} ${isMobileOpen ? styles.mobileOpen : ''}`}>
-        {/* Header */}
-        <div className={styles.panelHeader}>
-        <h1 className={styles.title}>Chats</h1>
-        <button className={styles.menuButton} onClick={onMenuOpen} title="Menu">
-          ⋮
-        </button>
-      </div>
-
-      {/* Search Bar */}
-      <div className={styles.searchBar} ref={searchBarRef}>
-        <input
-          type="text"
-          placeholder="Search chats, users..."
-          className={styles.searchInput}
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
-        {searchQuery && (
-          <div
-            className={`${styles.searchResults} ${isDarkMode ? styles.darkMode : ''}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {isSearching && <div className={styles.searchLoading}>Searching...</div>}
-            {!isSearching && searchResults.length === 0 && (
-              <div className={styles.searchNoResults}>No results found</div>
-            )}
-            {searchResults.map((result) => (
-              <div
-                key={result.id}
-                className={styles.searchResultItem}
-                onClick={() => {
-                  onSelectSearchResult(result);
-                  onClearSearch();
-                }}
-              >
-                <div className={styles.searchResultAvatar}>
-                  <Avatar src={result.avatar} name={result.name} fallbackClass={styles.avatarFallback} />
-                </div>
-                <div className={styles.searchResultInfo}>
-                  <div className={styles.searchResultName}>
-                    {result.name}
-                    <span className={styles.searchResultTypeIcon} title={result.type}>
-                      {result.type === 'user' ? ' 👤' : result.type === 'group' ? ' 👥' : result.type === 'channel' ? ' 📢' : ''}
-                    </span>
-                  </div>
-                  <div className={styles.searchResultType}>
-                    {result.type === 'user' ? 'User' : result.type === 'group' ? 'Group' : result.type === 'channel' ? 'Channel' : 'Unknown'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Chat List */}
-      <div className={styles.chatList}>
-        {isLoadingChats && <div className={styles.loading}>Loading chats...</div>}
-        {!isLoadingChats && chats.length === 0 && (
-          <div className={styles.emptyState}>No chats yet. Start a conversation!</div>
-        )}
-        {chats.map((chat) => (
-          <div
-            key={chat.id}
-            className={`${styles.chatItem} ${currentChat?.id === chat.id ? styles.active : ''}`}
-            onClick={() => onSelectChat(chat)}
-          >
-            {/* Avatar */}
-            <div className={styles.chatAvatar}>
-              <Avatar src={chat.avatar} name={chat.name} fallbackClass={styles.avatarFallback} />
-              {chat.type === 'dm' && chat.isOnline && <div className={styles.onlineIndicator} />}
-            </div>
-
-            {/* Chat Info */}
-            <div className={styles.chatInfo}>
-              <div className={styles.chatHeader}>
-                <div className={styles.chatNameWithType}>
-                  <span className={styles.chatName}>{chat.name}</span>
-                  <span className={`${styles.chatTypeIcon} ${styles[`icon${chat.type.charAt(0).toUpperCase() + chat.type.slice(1)}`]}`} title={chat.type}>
-                    {chat.type === 'dm' ? '👤' : chat.type === 'group' ? '👥' : chat.type === 'channel' ? '📢' : ''}
-                  </span>
-                </div>
-                <div className={styles.headerRight}>
-                  <span className={styles.timestamp}>{formatTime(chat.updatedAt)}</span>
-                  {chat.unreadCount > 0 && <span className={styles.unreadBadge}>{chat.unreadCount}</span>}
-                </div>
-              </div>
-              <div className={styles.chatPreview}>
-                <span>{getLastMessagePreview(chat)}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* User Section */}
-      {user && (
-        <div className={styles.userSection}>
-          <div className={styles.userAvatar}>
-            <Avatar src={user.avatar} name={user.username} fallbackClass={styles.avatarFallback} />
-          </div>
-          <div className={styles.userInfo}>
-            <div className={styles.username}>{user.username}</div>
-            <div className={styles.userStatus}>{user.onlineStatus}</div>
-          </div>
-          <button className={styles.logoutButton} onClick={onLogout} title="Logout">
-            ↪
-          </button>
-        </div>
-      )}
-    </div>
-    </>
-  );
-};
-
-interface MainContentProps {
-  currentChat: Chat | null;
-  messages: BackendMessage[];
-  isLoadingMessages: boolean;
-  onSendMessage: (content: string, file?: File) => Promise<void>;
-  onOpenGroupCreate: () => void;
-  onOpenChannelCreate: () => void;
-  onOpenUserProfile: (userId: string) => void;
-  onOpenMobileSidebar?: () => void;
-}
-
-// Add Member Modal
-interface AddMemberModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  chatId: string;
-  chatType: ChatType;
-  onMemberAdded: () => Promise<void>;
-}
-
-const AddMemberModal: React.FC<AddMemberModalProps> = ({
-  isOpen,
-  onClose,
-  chatId,
-  chatType,
-  onMemberAdded,
-}) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    setIsSearching(true);
-    searchTimeoutRef.current = setTimeout(async () => {
-      try {
-        const userService = await import('../services/user.service').then((m) => m.userService);
-        const users = await userService.searchUsers(query);
-        setSearchResults(users);
-      } catch (error) {
-        console.error('Search failed:', error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-  };
-
-  const handleAddMember = async (userId: string, username: string) => {
-    setIsAdding(true);
-    try {
-      if (chatType === 'group') {
-        await chatService.addMemberToGroup(chatId, userId);
-      } else if (chatType === 'channel') {
-        await chatService.addMemberToChannel(chatId, userId);
-      }
-      alert(`${username} has been added to the chat.`);
-      await onMemberAdded();
-      onClose();
-    } catch (error) {
-      console.error('Failed to add member:', error);
-      alert('Failed to add member. You may not have permission.');
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-        <div className={styles.modalHeader}>
-          <h2>Add Member</h2>
-          <button className={styles.closeButton} onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <div className={styles.modalBody}>
-          <div className={styles.formGroup}>
-            <label>Search Users</label>
-            <input
-              type="text"
-              placeholder="Type username to search..."
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className={styles.formInput}
-            />
-          </div>
-
-          {isSearching && <div className={styles.loadingState}>Searching...</div>}
-
-          {searchResults.length > 0 && (
-            <div style={{ marginTop: '16px', maxHeight: '300px', overflowY: 'auto' }}>
-              {searchResults.map((user) => (
-                <div
-                  key={user.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    backgroundColor: 'var(--background)',
-                    marginBottom: '8px',
-                  }}
-                >
-                  <div style={{ marginRight: '10px' }}>
-                    {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt={user.username}
-                        style={{ width: '32px', height: '32px', borderRadius: '50%' }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          backgroundColor: 'var(--accent)',
-                          color: '#fff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 600,
-                          fontSize: '13px',
-                        }}
-                      >
-                        {getInitials(user.username)}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>{user.username}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{user.email}</div>
-                  </div>
-                  <button
-                    onClick={() => handleAddMember(user.id, user.username)}
-                    disabled={isAdding}
-                    style={{
-                      padding: '6px 12px',
-                      backgroundColor: 'var(--accent)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {searchQuery && !isSearching && searchResults.length === 0 && (
-            <div className={styles.emptyState}>No users found</div>
-          )}
-        </div>
-        <div className={styles.modalFooter}>
-          <button onClick={onClose} className={styles.primaryButton}>
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Permission Management Modal
-interface PermissionModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  chatId: string;
-  member: ChatMember;
-  onPermissionsChanged: () => Promise<void>;
-}
-
-const AVAILABLE_PERMISSIONS = [
-  { name: 'SendMessages', label: 'Send Messages' },
-  { name: 'ManageMessages', label: 'Manage Messages' },
-  { name: 'ManageUsers', label: 'Manage Users' },
-  { name: 'ManageChatInfo', label: 'Manage Chat Info' },
-  { name: 'ManageBans', label: 'Manage Bans' },
-  { name: 'PinMessages', label: 'Pin Messages' },
-];
-
-const PermissionModal: React.FC<PermissionModalProps> = ({
-  isOpen,
-  onClose,
-  chatId,
-  member,
-  onPermissionsChanged,
-}) => {
-  const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      loadPermissions();
-    }
-  }, [isOpen, chatId, member.userId]);
-
-  const loadPermissions = async () => {
-    setIsLoading(true);
-    try {
-      const { permissionService } = await import('../services/permission.service');
-      const permissions = await permissionService.getUserPermissions(chatId, member.userId);
-      // Extract permission names from the response
-      const permissionNames = Array.isArray(permissions)
-        ? permissions.map((p: any) => p.name || p)
-        : [];
-      setUserPermissions(permissionNames);
-    } catch (error) {
-      console.error('Failed to load permissions:', error);
-      setUserPermissions([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleTogglePermission = async (permissionName: string) => {
-    const hasPermission = userPermissions.includes(permissionName);
-    setIsUpdating(true);
-
-    try {
-      const { permissionService } = await import('../services/permission.service');
-
-      if (hasPermission) {
-        await permissionService.revokePermission(chatId, member.userId, permissionName);
-        setUserPermissions(userPermissions.filter((p) => p !== permissionName));
-      } else {
-        await permissionService.grantPermission(chatId, member.userId, permissionName);
-        setUserPermissions([...userPermissions, permissionName]);
-      }
-
-      await onPermissionsChanged();
-    } catch (error) {
-      console.error('Failed to update permission:', error);
-      alert('Failed to update permission. You may not have the required privileges.');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
-        <div className={styles.modalHeader}>
-          <h2>Manage Permissions - {member.user.username}</h2>
-          <button className={styles.closeButton} onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <div className={styles.modalBody}>
-          {isLoading ? (
-            <div className={styles.loadingState}>Loading permissions...</div>
-          ) : (
-            <>
-              <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: 'var(--background)', borderRadius: '8px' }}>
-                <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--text)' }}>Current Role: {member.role}</div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  Grant or revoke specific permissions for this user.
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {AVAILABLE_PERMISSIONS.map((permission) => {
-                  const hasPermission = userPermissions.includes(permission.name);
-                  return (
-                    <div
-                      key={permission.name}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '12px',
-                        backgroundColor: hasPermission ? 'rgba(76, 175, 80, 0.1)' : 'var(--background)',
-                        border: hasPermission ? '2px solid #4caf50' : '2px solid var(--border)',
-                        borderRadius: '8px',
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>{permission.label}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          {permission.name}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleTogglePermission(permission.name)}
-                        disabled={isUpdating}
-                        style={{
-                          padding: '8px 16px',
-                          backgroundColor: hasPermission ? '#dc3545' : '#4caf50',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        {hasPermission ? '✕ Revoke' : '✓ Grant'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-        <div className={styles.modalFooter}>
-          <button onClick={onClose} className={styles.primaryButton}>
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const MainContent: React.FC<MainContentProps> = ({
-  currentChat,
-  messages,
-  isLoadingMessages,
-  onSendMessage,
-  onOpenGroupCreate,
-  onOpenChannelCreate,
-  onOpenUserProfile,
-  onOpenMobileSidebar,
-}) => {
-  const [messageText, setMessageText] = useState('');
-  const [isSending, setSending] = useState(false);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState('');
-  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const [showReactionPicker, setShowReactionPicker] = useState<{ messageId: string; x: number; y: number } | null>(null);
-  const [replyToMessage, setReplyToMessage] = useState<BackendMessage | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const reactionPickerRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Handle scroll to detect if user is at bottom and mark notifications as seen
-  const handleScroll = async () => {
-    const container = messagesContainerRef.current;
-    if (!container) {
-      console.log('[MainContent] Container ref is null');
-      return;
-    }
-
-    // Check if scrolled to bottom (within 100px)
-    const scrollHeight = container.scrollHeight;
-    const scrollTop = container.scrollTop;
-    const clientHeight = container.clientHeight;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-
-    console.log('[MainContent] SCROLL EVENT:', {
-      scrollHeight,
-      scrollTop,
-      clientHeight,
-      distance: scrollHeight - scrollTop - clientHeight,
-      isNearBottom,
-    });
-
-    setShowScrollButton(!isNearBottom);
-
-    // If at bottom, mark visible message notifications as seen
-    if (isNearBottom && currentChat && messages.length > 0) {
-      try {
-        console.log('[MainContent] ========== USER AT BOTTOM ==========');
-        console.log('[MainContent] Chat ID:', currentChat.id);
-        console.log('[MainContent] Chat:', currentChat);
-        console.log('[MainContent] Total messages:', messages.length);
-        console.log('[MainContent] Raw messages array:', messages);
-        if (messages.length > 0) {
-          console.log('[MainContent] First message full object:', messages[0]);
-          console.log('[MainContent] First message keys:', Object.keys(messages[0]));
-        }
-
-        // Collect notification IDs from visible messages that are not seen by current user
-        const notificationIdsToMark: string[] = [];
-        let processedCount = 0;
-        let skippedCount = 0;
-
-        messages.forEach((msg: any, index: number) => {
-          // Log first 3 messages for debugging
-          if (index < 3) {
-            console.log(`[MainContent] Message ${index}:`, {
-              messageId: msg.messageId || msg.id,
-              notificationId: msg.notificationId,
-              isCurrentUser: msg.isCurrentUser,
-              isNotificated: msg.isNotificated,
-              senderUsername: msg.senderUsername,
-              hasNotifId: !!msg.notificationId,
-            });
-          }
-
-          // Only mark notifications for messages that:
-          // 1. Are not from current user (isCurrentUser = false)
-          // 2. Have unseen notification (isNotificated = true)
-          // 3. Have a valid notification ID (not empty/null)
-          if (!msg.isCurrentUser && msg.isNotificated && msg.notificationId) {
-            notificationIdsToMark.push(msg.notificationId);
-            processedCount++;
-          } else {
-            skippedCount++;
-          }
-        });
-
-        console.log('[MainContent] Processing summary:', {
-          processedCount,
-          skippedCount,
-          totalToMark: notificationIdsToMark.length,
-          notificationIds: notificationIdsToMark,
-        });
-
-        if (notificationIdsToMark.length > 0) {
-          const notificationService = await import('../services/notification.service').then(
-            (m) => m.notificationService
-          );
-
-          console.log('[MainContent] Calling markMultipleAsSeen with IDs:', notificationIdsToMark);
-
-          try {
-            const markResult = await notificationService.markMultipleAsSeen(notificationIdsToMark);
-            console.log(
-              '[MainContent] Successfully marked',
-              notificationIdsToMark.length,
-              'message notifications as seen. Result:',
-              markResult
-            );
-          } catch (error) {
-            console.error('[MainContent] Failed to mark notifications as seen:', error);
-          }
-        } else {
-          console.log('[MainContent] No unseen messages found to mark as seen');
-          console.log('[MainContent] Reasons - isCurrentUser or isNotificated false, or notificationId empty');
-        }
-        console.log('[MainContent] ========== END BOTTOM HANDLER ==========');
-      } catch (error) {
-        console.error('[MainContent] Error processing scroll:', error);
-      }
-    }
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-    setShowScrollButton(false);
-  }, [messages, currentChat]);
-
-  const handleSendMessage = async () => {
-    if (!messageText.trim() || !currentChat) return;
-
-    setSending(true);
-    try {
-      // If replying, we would add replyId to the FormData here
-      // For now, just send the message normally
-      await onSendMessage(messageText);
-      setMessageText('');
-      setReplyToMessage(null);
-    } catch (error) {
-      console.error('Failed to send message:', error);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleAddReaction = async (messageId: string, emoji: string) => {
-    try {
-      const messageService = await import('../services/message.service').then((m) => m.messageService);
-      await messageService.addReaction(messageId, emoji);
-      setShowReactionPicker(null);
-      // Reload messages
-      const chatStore = useChatStore.getState();
-      if (currentChat) {
-        await chatStore.loadMessages(currentChat.id);
-      }
-    } catch (error) {
-      console.error('Failed to add reaction:', error);
-    }
-  };
-
-  const handleRemoveReaction = async (messageId: string, emoji: string) => {
-    try {
-      const messageService = await import('../services/message.service').then((m) => m.messageService);
-      await messageService.removeReaction(messageId, emoji);
-      // Reload messages
-      const chatStore = useChatStore.getState();
-      if (currentChat) {
-        await chatStore.loadMessages(currentChat.id);
-      }
-    } catch (error) {
-      console.error('Failed to remove reaction:', error);
-    }
-  };
-
-  const handleContextMenu = (e: React.MouseEvent, messageId: string, isOwnMessage: boolean) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isOwnMessage) {
-      setContextMenu({ messageId, x: e.clientX, y: e.clientY });
-    }
-  };
-
-  const handleShowReactionPicker = (e: React.MouseEvent, messageId: string) => {
-    e.stopPropagation();
-    setShowReactionPicker({ messageId, x: e.clientX, y: e.clientY });
-  };
-
-  const handleEditMessage = (messageId: string) => {
-    const msg = messages.find((m) => m.messageId === messageId);
-    if (msg) {
-      setEditingMessageId(messageId);
-      setEditingContent(msg.content);
-      setContextMenu(null);
-    }
-  };
-
-  const handleSaveEdit = async (messageId: string) => {
-    if (editingContent.trim()) {
-      try {
-        const messageService = await import('../services/message.service').then((m) => m.messageService);
-        await messageService.editMessage(messageId, editingContent);
-        setEditingMessageId(null);
-        setEditingContent('');
-        // Reload messages
-        const chatStore = useChatStore.getState();
-        if (currentChat) {
-          await chatStore.loadMessages(currentChat.id);
-        }
-      } catch (error) {
-        console.error('Failed to edit message:', error);
-      }
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingMessageId(null);
-    setEditingContent('');
-  };
-
-  const handleDeleteMessage = async (messageId: string) => {
-    if (confirm('Are you sure you want to delete this message?')) {
-      try {
-        const messageService = await import('../services/message.service').then((m) => m.messageService);
-        await messageService.deleteMessage(messageId);
-        setContextMenu(null);
-        // Reload messages
-        const chatStore = useChatStore.getState();
-        if (currentChat) {
-          await chatStore.loadMessages(currentChat.id);
-        }
-      } catch (error) {
-        console.error('Failed to delete message:', error);
-      }
-    }
-  };
-
-  // Close context menu and reaction picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-        setContextMenu(null);
-      }
-      if (reactionPickerRef.current && !reactionPickerRef.current.contains(e.target as Node)) {
-        setShowReactionPicker(null);
-      }
-    };
-    if (contextMenu || showReactionPicker) {
-      document.addEventListener('click', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [contextMenu, showReactionPicker]);
-
-  if (!currentChat) {
-    return (
-      <div className={styles.mainContent}>
-        <div className={styles.emptyScreen}>
-          <div className={styles.emptyIcon}>💬</div>
-          <h2>Select a chat to start messaging</h2>
-          <p>Choose a conversation from the list or start a new one</p>
-          <div className={styles.emptyActions}>
-            <button className={styles.actionButton} onClick={onOpenGroupCreate}>
-              Create Group
-            </button>
-            <button className={styles.actionButton} onClick={onOpenChannelCreate}>
-              Create Channel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.mainContent} style={{ position: 'relative' }}>
-      {/* Chat Header */}
-      <div className={styles.chatHeaderBar}>
-        <div className={styles.headerLeft}>
-          {/* Mobile Menu Button */}
-          {onOpenMobileSidebar && (
-            <button
-              onClick={onOpenMobileSidebar}
-              className={styles.mobileMenuButton}
-              style={{
-                display: 'none',
-                padding: '8px',
-                background: 'none',
-                border: 'none',
-                fontSize: '24px',
-                cursor: 'pointer',
-                color: 'var(--text)',
-                marginRight: '8px',
-              }}
-              aria-label="Open menu"
-            >
-              ☰
-            </button>
-          )}
-          <div className={styles.headerAvatar}>
-            <Avatar src={currentChat.avatar} name={currentChat.name} fallbackClass={styles.avatarFallback} />
-          </div>
-          <div className={styles.headerInfo}>
-            <h2 className={styles.headerTitle}>
-              {currentChat.name}
-              <span className={styles.headerChatType} title={currentChat.type}>
-                {currentChat.type === 'dm' ? ' 👤' : currentChat.type === 'group' ? ' 👥' : currentChat.type === 'channel' ? ' 📢' : ' ❓'}
-              </span>
-            </h2>
-            <div className={styles.headerStatus}>
-              {currentChat.type === 'dm' ? (
-                currentChat.isOnline ? (
-                  <span className={styles.online}>● Online</span>
-                ) : (
-                  <span>Last seen at 2:30 PM</span>
-                )
-              ) : (
-                <span>{currentChat.members?.length || 0} members</span>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className={styles.headerActions}>
-          {/* Removed unnecessary buttons - using simpler header */}
-        </div>
-      </div>
-
-      {/* Messages Container */}
-      <div
-        className={styles.messagesContainer}
-        ref={messagesContainerRef}
-        onScroll={handleScroll}
-      >
-        {isLoadingMessages && <div className={styles.loading}>Loading messages...</div>}
-        {!isLoadingMessages && messages.length === 0 && (
-          <div className={styles.noMessages}>No messages yet. Start the conversation!</div>
-        )}
-        {messages.map((msg) => (
-          <div
-            key={msg.messageId}
-            className={`${styles.messageGroup} ${msg.isCurrentUser ? styles.ownMessage : styles.otherMessage}`}
-            style={{ position: 'relative' }}
-          >
-            {!msg.isCurrentUser && (
-              <div
-                className={styles.senderAvatar}
-                onClick={() => onOpenUserProfile(msg.senderId)}
-                style={{ cursor: 'pointer' }}
-              >
-                {msg.senderAvatarUrl ? (
-                  <img src={msg.senderAvatarUrl} alt={msg.senderUsername} />
-                ) : (
-                  <div className={styles.avatarFallback}>{getInitials(msg.senderUsername)}</div>
-                )}
-              </div>
-            )}
-            {editingMessageId === msg.messageId ? (
-              // Edit mode
-              <div className={styles.messageBubble} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <textarea
-                  value={editingContent}
-                  onChange={(e) => setEditingContent(e.target.value)}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: '10px',
-                    border: '2px solid var(--accent)',
-                    backgroundColor: 'var(--background)',
-                    color: 'var(--text)',
-                    fontSize: '15px',
-                    fontFamily: 'inherit',
-                    minHeight: '60px',
-                    resize: 'vertical',
-                  }}
-                />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => handleSaveEdit(msg.messageId)}
-                    style={{
-                      padding: '6px 12px',
-                      backgroundColor: 'var(--accent)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={handleCancelEdit}
-                    style={{
-                      padding: '6px 12px',
-                      backgroundColor: 'var(--border)',
-                      color: 'var(--text)',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // Normal message display
-              <div
-                className={styles.messageBubble}
-                onContextMenu={(e) => handleContextMenu(e, msg.messageId, msg.isCurrentUser)}
-                style={{ position: 'relative' }}
-              >
-                {!msg.isCurrentUser && <div className={styles.senderName}>{msg.senderUsername}</div>}
-                {msg.replyId && (
-                  <div
-                    style={{
-                      padding: '6px 10px',
-                      backgroundColor: 'rgba(0,0,0,0.1)',
-                      borderLeft: '3px solid var(--accent)',
-                      borderRadius: '4px',
-                      marginBottom: '8px',
-                      fontSize: '12px',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    ↩️ Reply to message
-                  </div>
-                )}
-                <div className={styles.messageContent}>{msg.content}</div>
-                {msg.fileUrl && (
-                  <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className={styles.attachment}>
-                    📎 File
-                  </a>
-                )}
-                {msg.messageReactions && msg.messageReactions.length > 0 && (
-                  <div className={styles.reactionsContainer} style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
-                    {msg.messageReactions.map((reaction, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleRemoveReaction(msg.messageId, reaction.emoji)}
-                        title={`${reaction.userName} reacted with ${reaction.emoji}`}
-                        style={{
-                          padding: '4px 8px',
-                          backgroundColor: 'var(--background)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '12px',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        {reaction.emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                  <div className={styles.messageTime}>{formatTime(msg.sentAt)}</div>
-                  <button
-                    onClick={(e) => handleShowReactionPicker(e, msg.messageId)}
-                    title="Add reaction"
-                    style={{
-                      padding: '2px 6px',
-                      backgroundColor: 'transparent',
-                      border: '1px solid var(--border)',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      opacity: 0.6,
-                      transition: 'opacity 0.2s',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                    onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
-                  >
-                    😊+
-                  </button>
-                  {!msg.isCurrentUser && (
-                    <button
-                      onClick={() => setReplyToMessage(msg)}
-                      title="Reply"
-                      style={{
-                        padding: '2px 6px',
-                        backgroundColor: 'transparent',
-                        border: '1px solid var(--border)',
-                        borderRadius: '10px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        opacity: 0.6,
-                        transition: 'opacity 0.2s',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                      onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
-                    >
-                      ↩️
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            {/* Reaction Picker */}
-            {showReactionPicker?.messageId === msg.messageId && (
-              <div
-                ref={reactionPickerRef}
-                style={{
-                  position: 'fixed',
-                  top: `${showReactionPicker.y}px`,
-                  left: `${showReactionPicker.x}px`,
-                  backgroundColor: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                  zIndex: 1000,
-                  padding: '8px',
-                  display: 'flex',
-                  gap: '4px',
-                }}
-              >
-                {['👍', '❤️', '😂', '😮', '😢', '🎉', '🔥', '👏'].map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => handleAddReaction(msg.messageId, emoji)}
-                    style={{
-                      padding: '8px',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '20px',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--background)';
-                      e.currentTarget.style.transform = 'scale(1.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.transform = 'scale(1)';
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-            {/* Context Menu */}
-            {contextMenu?.messageId === msg.messageId && msg.isCurrentUser && (
-              <div
-                ref={contextMenuRef}
-                style={{
-                  position: 'fixed',
-                  top: `${contextMenu.y}px`,
-                  left: `${contextMenu.x}px`,
-                  backgroundColor: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                  zIndex: 1000,
-                  minWidth: '160px',
-                  overflow: 'hidden',
-                }}
-              >
-                <button
-                  onClick={() => handleEditMessage(msg.messageId)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    color: 'var(--text)',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    transition: 'background-color 0.2s ease',
-                    borderBottom: '1px solid var(--border)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--background)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  ✏️ Edit
-                </button>
-                <button
-                  onClick={() => handleDeleteMessage(msg.messageId)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    color: '#d32f2f',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    transition: 'background-color 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(211, 47, 47, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  🗑️ Delete
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Scroll to Bottom Button */}
-      {showScrollButton && (
-        <button
-          onClick={scrollToBottom}
-          title="Scroll to bottom"
-          style={{
-            position: 'absolute',
-            bottom: '100px',
-            right: '20px',
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--accent)',
-            color: '#fff',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
-            transition: 'all 0.2s ease',
-            zIndex: 10,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.2)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.15)';
-          }}
-        >
-          ↓
-        </button>
-      )}
-
-      {/* Message Input */}
-      <div className={styles.messageInput}>
-        {replyToMessage && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 0,
-              right: 0,
-              padding: '8px 12px',
-              backgroundColor: 'var(--background)',
-              borderTop: '2px solid var(--accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontSize: '13px',
-            }}
-          >
-            <div>
-              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                Replying to {replyToMessage.senderUsername}:
-              </span>{' '}
-              <span style={{ color: 'var(--text-secondary)' }}>
-                {replyToMessage.content.substring(0, 50)}
-                {replyToMessage.content.length > 50 ? '...' : ''}
-              </span>
-            </div>
-            <button
-              onClick={() => setReplyToMessage(null)}
-              style={{
-                padding: '4px 8px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                fontSize: '16px',
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-        <input
-          type="text"
-          placeholder={replyToMessage ? 'Type your reply...' : 'Type a message...'}
-          value={messageText}
-          onChange={(e) => setMessageText(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          className={styles.inputField}
-          disabled={isSending}
-        />
-        <button className={styles.emojiButton} title="Emoji">
-          😊
-        </button>
-        <button className={styles.attachButton} title="Attach file">
-          📎
-        </button>
-        <button
-          onClick={handleSendMessage}
-          disabled={!messageText.trim() || isSending}
-          className={styles.sendButton}
-        >
-          {isSending ? '...' : '→'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-interface RightPanelProps {
-  currentChat: Chat | null;
-  onReloadChat: () => Promise<void>;
-  onViewUserProfile: (userId: string) => void;
-}
-
-const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadChat, onViewUserProfile }) => {
-  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<ChatMember | null>(null);
-  const [isTogglingPrivacy, setIsTogglingPrivacy] = useState(false);
-  const [showMembersList, setShowMembersList] = useState(false);
-  const [chatProfile, setChatProfile] = useState<any>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
-  const { user: currentUser } = useAuthStore();
-
-  // Fetch chat profile to get full member/participant data
-  useEffect(() => {
-    const fetchChatProfile = async () => {
-      if (!currentChat?.id) return;
-
-      setIsLoadingProfile(true);
-      try {
-        const profile = await chatService.getChatProfile(currentChat.id);
-        console.log('[RightPanel] Chat profile loaded:', profile);
-        setChatProfile(profile);
-      } catch (error) {
-        console.error('[RightPanel] Failed to load chat profile:', error);
-        setChatProfile(null);
-      } finally {
-        setIsLoadingProfile(false);
-      }
-    };
-
-    fetchChatProfile();
-  }, [currentChat?.id]);
-
-  if (!currentChat) {
-    return <div className={styles.rightPanel} />;
-  }
-
-  // For DMs, get the other user (not current user)
-  const otherUser = currentChat.type === 'dm' && chatProfile?.participants
-    ? chatProfile.participants.find((p: any) => p.id !== currentUser?.id)
-    : null;
-
-  const handleBanMember = async (member: ChatMember) => {
-    if (!confirm(`Ban "${member.user.username}" from this chat?`)) return;
-
-    try {
-      await chatService.banUser(currentChat.id, member.userId);
-      alert(`${member.user.username} has been banned.`);
-      await onReloadChat();
-    } catch (error) {
-      console.error('Failed to ban user:', error);
-      alert('Failed to ban user. You may not have permission.');
-    }
-  };
-
-  const handleTogglePrivacy = async () => {
-    const newPrivacy = currentChat.privacy === 'public' ? 'private' : 'public';
-    if (!confirm(`Change chat privacy to ${newPrivacy}?`)) return;
-
-    setIsTogglingPrivacy(true);
-    try {
-      await chatService.updateChatPrivacy(currentChat.id, newPrivacy);
-      alert(`Chat privacy changed to ${newPrivacy}.`);
-      await onReloadChat();
-    } catch (error) {
-      console.error('Failed to update privacy:', error);
-      alert('Failed to update privacy. You may not have permission.');
-    } finally {
-      setIsTogglingPrivacy(false);
-    }
-  };
-
-  return (
-    <div className={styles.rightPanel}>
-      <div className={styles.panelHeader}>
-        <h3>Chat Info</h3>
-      </div>
-      <div className={styles.infoContent}>
-        {currentChat.type === 'dm' ? (
-          <>
-            <div className={styles.infoSection}>
-              <div className={styles.infoLabel} style={{ color: 'var(--text)', marginBottom: '12px', fontWeight: 600 }}>Member</div>
-
-              {isLoadingProfile ? (
-                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  Loading profile...
-                </div>
-              ) : otherUser ? (
-                <div
-                  onClick={() => onViewUserProfile(otherUser.id)}
-                  style={{
-                    padding: '16px',
-                    backgroundColor: 'var(--background)',
-                    border: '2px solid var(--border)',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--accent)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  title="Click to view full profile"
-                >
-                  <div className={styles.memberAvatar}>
-                    {otherUser.avatarUrl ? (
-                      <img
-                        src={otherUser.avatarUrl}
-                        alt={otherUser.username}
-                        style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      <div
-                        className={styles.avatarFallback}
-                        style={{
-                          width: '50px',
-                          height: '50px',
-                          fontSize: '20px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: 'var(--accent)',
-                          color: '#fff',
-                          borderRadius: '50%',
-                          fontWeight: 600
-                        }}
-                      >
-                        {getInitials(otherUser.username)}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: 'var(--text)', fontWeight: 700, fontSize: '16px', marginBottom: '4px' }}>
-                      {otherUser.username}
-                    </div>
-                    {otherUser.description && (
-                      <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '6px' }}>
-                        {otherUser.description}
-                      </div>
-                    )}
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '6px' }}>
-                      {otherUser.isOnline ? '🟢 Online' : '⚫ Offline'}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>
-                      👤 Tap to view profile
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  No user information available
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Chat Name & Description */}
-            {(chatProfile?.name || chatProfile?.description) && (
-              <div className={styles.infoSection}>
-                <div className={styles.infoLabel} style={{ color: 'var(--text)', marginBottom: '8px', fontWeight: 600 }}>
-                  {currentChat.type === 'group' ? 'Group' : 'Channel'} Info
-                </div>
-                <div style={{ padding: '12px', backgroundColor: 'var(--background)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <div style={{ color: 'var(--text)', fontWeight: 700, fontSize: '16px', marginBottom: '6px' }}>
-                    {chatProfile.name || currentChat.name}
-                  </div>
-                  {chatProfile.description && (
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.5' }}>
-                      {chatProfile.description}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '8px', fontSize: '12px' }}>
-                    <div style={{ color: 'var(--text-secondary)' }}>
-                      👥 {chatProfile.participantsCount || 0} members
-                    </div>
-                    <div style={{ color: 'var(--text-secondary)' }}>
-                      🟢 {chatProfile.participantsOnline || 0} online
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Privacy Toggle */}
-            <div className={styles.infoSection}>
-              <div className={styles.infoLabel} style={{ color: 'var(--text)' }}>Privacy</div>
-              <button
-                onClick={handleTogglePrivacy}
-                disabled={isTogglingPrivacy}
-                style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'var(--accent)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  width: '100%',
-                  marginTop: '4px',
-                }}
-              >
-                {isTogglingPrivacy ? 'Changing...' : `Current: ${currentChat.privacy || 'private'} (Click to toggle)`}
-              </button>
-            </div>
-
-            {/* Add Member Button */}
-            <div className={styles.infoSection}>
-              <button
-                onClick={() => setShowAddMemberModal(true)}
-                style={{
-                  padding: '10px 14px',
-                  backgroundColor: 'var(--accent)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                ➕ Add Member
-              </button>
-            </div>
-
-            {/* Members List with Toggle */}
-            <div className={styles.infoSection}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div className={styles.infoLabel} style={{ color: 'var(--text)' }}>
-                  Members ({chatProfile?.participants?.length || currentChat.members?.length || 0})
-                </div>
-                <button
-                  onClick={() => setShowMembersList(!showMembersList)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: 'var(--accent)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                  }}
-                >
-                  {showMembersList ? '▼ Hide' : '▶ Show'}
-                </button>
-              </div>
-              {showMembersList && (
-                <div className={styles.memberList}>
-                  {isLoadingProfile ? (
-                    <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                      Loading members...
-                    </div>
-                  ) : chatProfile?.participants && chatProfile.participants.length > 0 ? (
-                    chatProfile.participants.map((participant: any) => {
-                      // Map backend participant structure to frontend member structure
-                      const member = {
-                        id: participant.id,
-                        userId: participant.id,
-                        user: {
-                          id: participant.id,
-                          username: participant.username,
-                          avatar: participant.avatarUrl,
-                          bio: participant.description,
-                        },
-                        role: 'member' as const, // Backend doesn't return role from profile endpoint
-                      };
-
-                      return (
-                        <div
-                          key={member.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '10px',
-                            borderRadius: '10px',
-                            backgroundColor: 'var(--background)',
-                            border: '1px solid var(--border)',
-                            marginBottom: '8px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--surface)';
-                            e.currentTarget.style.borderColor = 'var(--accent)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--background)';
-                            e.currentTarget.style.borderColor = 'var(--border)';
-                          }}
-                        >
-                          <div
-                            className={styles.memberAvatar}
-                            style={{ flexShrink: 0, cursor: 'pointer' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onViewUserProfile(member.userId);
-                            }}
-                            title="View profile"
-                          >
-                            {member.user.avatar ? (
-                              <img src={member.user.avatar} alt={member.user.username} />
-                            ) : (
-                              <div className={styles.avatarFallback}>{getInitials(member.user.username)}</div>
-                            )}
-                          </div>
-                          <div
-                            className={styles.memberInfo}
-                            style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onViewUserProfile(member.userId);
-                            }}
-                            title="View profile"
-                          >
-                            <div className={styles.memberName} style={{ color: 'var(--text)', fontWeight: 600 }}>
-                              {member.user.username}
-                            </div>
-                            {participant.isOnline !== undefined && (
-                              <div className={styles.memberRole} style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
-                                {participant.isOnline ? '🟢 Online' : '⚫ Offline'}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedMember(member);
-                                setShowPermissionModal(true);
-                              }}
-                              title="Manage Permissions"
-                              style={{
-                                padding: '6px 10px',
-                                backgroundColor: '#6366f1',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                transition: 'all 0.2s',
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#4f46e5')}
-                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#6366f1')}
-                            >
-                              🔐
-                            </button>
-                            {member.role !== 'admin' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleBanMember(member);
-                                }}
-                                title="Ban User"
-                                style={{
-                                  padding: '6px 10px',
-                                  backgroundColor: '#dc3545',
-                                  color: '#fff',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '12px',
-                                  fontWeight: 600,
-                                  transition: 'all 0.2s',
-                                }}
-                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#c82333')}
-                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#dc3545')}
-                              >
-                                🚫
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                      No members found
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {currentChat.description && (
-              <div className={styles.infoSection}>
-                <div className={styles.infoLabel} style={{ color: 'var(--text)' }}>Description</div>
-                <p style={{ color: 'var(--text-secondary)' }}>{currentChat.description}</p>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Add Member Modal */}
-      {showAddMemberModal && (
-        <AddMemberModal
-          isOpen={showAddMemberModal}
-          onClose={() => setShowAddMemberModal(false)}
-          chatId={currentChat.id}
-          chatType={currentChat.type}
-          onMemberAdded={onReloadChat}
-        />
-      )}
-
-      {/* Permission Management Modal */}
-      {showPermissionModal && selectedMember && (
-        <PermissionModal
-          isOpen={showPermissionModal}
-          onClose={() => {
-            setShowPermissionModal(false);
-            setSelectedMember(null);
-          }}
-          chatId={currentChat.id}
-          member={selectedMember}
-          onPermissionsChanged={onReloadChat}
-        />
-      )}
-    </div>
-  );
-};
-
-interface MenuDropdownProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreateGroup: () => void;
-  onCreateChannel: () => void;
-  onEditProfile: () => void;
-  onShowNotifications: () => void;
-  onShowAdminPanel: () => void;
-  isDarkMode: boolean;
-  onToggleDarkMode: () => void;
-  onLogout: () => void;
-}
-
-const MenuDropdown: React.FC<MenuDropdownProps> = ({
-  isOpen,
-  onCreateGroup,
-  onCreateChannel,
-  onEditProfile,
-  onShowNotifications,
-  onShowAdminPanel,
-  isDarkMode,
-  onToggleDarkMode,
-  onLogout,
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className={`${styles.menuDropdown} ${isDarkMode ? styles.darkMode : ''}`}>
-      <button className={styles.menuItem} onClick={onCreateGroup}>
-        ➕ Create Group
-      </button>
-      <button className={styles.menuItem} onClick={onCreateChannel}>
-        📢 Create Channel
-      </button>
-      <div className={styles.menuDivider} />
-      <button className={styles.menuItem} onClick={onEditProfile}>
-        👤 Edit Profile
-      </button>
-      <button className={styles.menuItem} onClick={onShowNotifications}>
-        🔔 Notifications
-      </button>
-      <button className={styles.menuItem} onClick={onShowAdminPanel}>
-        🔐 Admin Panel
-      </button>
-      <button className={styles.menuItem} onClick={onToggleDarkMode}>
-        {isDarkMode ? '☀️' : '🌙'} {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-      </button>
-      <div className={styles.menuDivider} />
-      <button className={styles.menuItem} onClick={onLogout}>
-        🚪 Logout
-      </button>
-    </div>
-  );
-};
-
 // MAIN DASHBOARD COMPONENT
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { chats, currentChat, isLoadingChats } = useChatStore();
+  const { theme, toggleTheme } = useThemeStore();
+  const signalR = useSignalR();
   const [messages, setMessages] = useState<BackendMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
+  const [showEditGroupModal, setShowEditGroupModal] = useState(false);
+  const [chatToEdit, setChatToEdit] = useState<Chat | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showCustomReactionModal, setShowCustomReactionModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2575,29 +1011,13 @@ const Dashboard: React.FC = () => {
   const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
   const [isLoadingUserProfile, setIsLoadingUserProfile] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    const darkMode = saved ? JSON.parse(saved) : false;
-    // Apply dark mode class on initial load
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    return darkMode;
-  });
+  const [showGroupProfileModal, setShowGroupProfileModal] = useState(false);
+  const [showUserViewerModal, setShowUserViewerModal] = useState(false);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Save dark mode to localStorage and apply to document root
-  useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
+  const isDarkMode = theme === 'dark';
 
   // Initialize chats on mount
   useEffect(() => {
@@ -2647,6 +1067,34 @@ const Dashboard: React.FC = () => {
     loadMessages();
   }, [currentChat]);
 
+  // Join/leave SignalR chat rooms when chat changes
+  useEffect(() => {
+    const joinLeaveChats = async () => {
+      if (!currentChat || !currentChat.id || currentChat.id === 'search' || currentChat.id.startsWith('temp_dm_')) {
+        return;
+      }
+
+      if (signalR.isConnected) {
+        try {
+          console.log('[Dashboard] Joining SignalR chat room:', currentChat.id);
+          await signalR.joinChat(currentChat.id);
+        } catch (error) {
+          console.error('[Dashboard] Failed to join chat room:', error);
+        }
+      }
+
+      // Cleanup: leave chat when unmounting or switching chats
+      return () => {
+        if (currentChat && currentChat.id && signalR.isConnected) {
+          console.log('[Dashboard] Leaving SignalR chat room:', currentChat.id);
+          signalR.leaveChat(currentChat.id).catch(console.error);
+        }
+      };
+    };
+
+    joinLeaveChats();
+  }, [currentChat, signalR.isConnected]);
+
   const handleSelectChat = (chat: Chat) => {
     useChatStore.getState().setCurrentChat(chat);
   };
@@ -2659,35 +1107,48 @@ const Dashboard: React.FC = () => {
     if (!currentChat || !currentChat.id || currentChat.id === 'search' || !user) return;
 
     try {
-      const formData = new FormData();
+      // If there's a file attachment, use REST API (SignalR doesn't handle files)
+      if (file) {
+        console.log('[Dashboard] Sending message with file via REST API');
+        const formData = new FormData();
 
-      // Check if this is a temporary blank chat (ID starts with temp_dm_)
-      if (currentChat.id.startsWith('temp_dm_')) {
-        console.log('[Dashboard] Sending message to temporary blank chat, extracting recipientId from ID');
-        const recipientId = currentChat.id.replace('temp_dm_', '');
-        formData.append('receiverId', recipientId);
-      } else {
-        // Regular chat - use chatId
-        formData.append('chatId', currentChat.id);
-
-        // For DMs with existing conversation, also try to get recipientId
-        if (currentChat.type === 'dm') {
-          const recipientId = currentChat.members?.find((m) => m.userId !== user.id)?.userId;
-          if (recipientId) formData.append('receiverId', recipientId);
+        // Check if this is a temporary blank chat (ID starts with temp_dm_)
+        if (currentChat.id.startsWith('temp_dm_')) {
+          const recipientId = currentChat.id.replace('temp_dm_', '');
+          formData.append('receiverId', recipientId);
+        } else {
+          formData.append('chatId', currentChat.id);
+          if (currentChat.type === 'dm') {
+            const recipientId = currentChat.members?.find((m) => m.userId !== user.id)?.userId;
+            if (recipientId) formData.append('receiverId', recipientId);
+          }
         }
+
+        formData.append('content', content);
+        formData.append('file', file);
+
+        const messageService = await import('../services/message.service').then((m) => m.messageService);
+        await messageService.sendMessage(formData);
+      } else {
+        // Text-only message: use SignalR for real-time messaging
+        console.log('[Dashboard] Sending text message via SignalR');
+
+        let chatId: string | null = null;
+        let receiverId: string | null = null;
+
+        // Check if this is a temporary blank chat
+        if (currentChat.id.startsWith('temp_dm_')) {
+          receiverId = currentChat.id.replace('temp_dm_', '');
+        } else {
+          chatId = currentChat.id;
+          // For DMs with existing conversation, also get recipientId
+          if (currentChat.type === 'dm') {
+            receiverId = currentChat.members?.find((m) => m.userId !== user.id)?.userId || null;
+          }
+        }
+
+        await signalR.sendMessage(chatId, content, receiverId, null);
       }
-
-      formData.append('content', content);
-      if (file) formData.append('attachment', file);
-
-      console.log('[Dashboard] Sending message with formData:', {
-        chatId: formData.get('chatId'),
-        receiverId: formData.get('receiverId'),
-        content: content
-      });
-
-      const messageService = await import('../services/message.service').then((m) => m.messageService);
-      await messageService.sendMessage(formData);
 
       console.log('[Dashboard] Message sent successfully');
 
@@ -2725,7 +1186,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleCreateGroup = async (name: string, description: string, privacy: string) => {
+  const handleCreateGroup = async (name: string, description: string, privacy: string, avatar?: File | null) => {
     try {
       const formData = new FormData();
       formData.append('name', name);
@@ -2735,20 +1196,25 @@ const Dashboard: React.FC = () => {
       // Backend expects: 0 = Public, 1 = Private
       formData.append('privacyType', privacy === 'public' ? '0' : '1');
 
+      // Add avatar if provided
+      if (avatar) {
+        formData.append('file', avatar);
+      }
+
       await chatService.createGroup(formData);
-      alert('Group created successfully!');
+      toast.success('Group created successfully!');
 
       // Reload chats
       const chatStore = useChatStore.getState();
       await chatStore.loadChats();
     } catch (error: any) {
       console.error('Failed to create group:', error);
-      alert(`Failed to create group: ${error.response?.data?.message || error.message || 'Unknown error'}`);
+      toast.error(extractErrorMessage(error, 'Failed to create group'));
       throw error;
     }
   };
 
-  const handleCreateChannel = async (name: string, description: string, privacy: string) => {
+  const handleCreateChannel = async (name: string, description: string, privacy: string, avatar?: File | null) => {
     try {
       const formData = new FormData();
       formData.append('name', name);
@@ -2758,31 +1224,186 @@ const Dashboard: React.FC = () => {
       // Backend expects: 0 = Public, 1 = Private
       formData.append('privacyType', privacy === 'public' ? '0' : '1');
 
+      // Add avatar if provided
+      if (avatar) {
+        formData.append('file', avatar);
+      }
+
       await chatService.createChannel(formData);
-      alert('Channel created successfully!');
+      toast.success('Channel created successfully!');
 
       // Reload chats
       const chatStore = useChatStore.getState();
       await chatStore.loadChats();
     } catch (error: any) {
       console.error('Failed to create channel:', error);
-      alert(`Failed to create channel: ${error.response?.data?.message || error.message || 'Unknown error'}`);
+      toast.error(extractErrorMessage(error, 'Failed to create channel'));
       throw error;
     }
   };
 
-  const handleUpdateProfile = async (username: string, email: string, description: string, policy: string) => {
+  const handleUpdateGroup = async (chatId: string, name: string, description: string, privacy: string, avatar?: File | null) => {
+    try {
+      const formData = new FormData();
+      formData.append('chatId', chatId);
+      formData.append('name', name);
+      if (description) {
+        formData.append('description', description);
+      }
+      // Backend expects: 0 = Public, 1 = Private
+      formData.append('privacyType', privacy === 'public' ? '0' : '1');
+
+      // Add avatar if provided
+      if (avatar) {
+        formData.append('file', avatar);
+      }
+
+      // Determine chat type from chatToEdit
+      const chatType = chatToEdit?.type === 'channel' ? 'channel' : 'group';
+      await chatService.updateChat(chatId, chatType as 'group' | 'channel', formData);
+      toast.success('Group/Channel updated successfully!');
+
+      // Reload chats
+      const chatStore = useChatStore.getState();
+      await chatStore.loadChats();
+    } catch (error: any) {
+      console.error('Failed to update group/channel:', error);
+      toast.error(extractErrorMessage(error, 'Failed to update group/channel'));
+      throw error;
+    }
+  };
+
+  const handleBanMember = async (userId: string) => {
+    if (!currentChat) return;
+    try {
+      await chatService.banUser(currentChat.id, userId);
+      toast.success('User banned successfully');
+      // Reload chat profile
+      const updated = await chatService.getChatProfile(currentChat.id);
+      useChatStore.getState().setCurrentChat(updated);
+    } catch (error) {
+      console.error('Failed to ban user:', error);
+      toast.error(extractErrorMessage(error, 'Failed to ban user'));
+    }
+  };
+
+  const handleUnbanMember = async (userId: string) => {
+    if (!currentChat) return;
+    try {
+      await chatService.unbanUser(currentChat.id, userId);
+      toast.success('User unbanned successfully');
+      const updated = await chatService.getChatProfile(currentChat.id);
+      useChatStore.getState().setCurrentChat(updated);
+    } catch (error) {
+      console.error('Failed to unban user:', error);
+      toast.error(extractErrorMessage(error, 'Failed to unban user'));
+    }
+  };
+
+  const handleUpdatePrivacy = async (privacy: 'public' | 'private') => {
+    if (!currentChat) return;
+    try {
+      await chatService.updateChatPrivacy(currentChat.id, privacy);
+      toast.success(`Privacy updated to ${privacy}`);
+      const updated = await chatService.getChatProfile(currentChat.id);
+      useChatStore.getState().setCurrentChat(updated);
+    } catch (error) {
+      console.error('Failed to update privacy:', error);
+      toast.error(extractErrorMessage(error, 'Failed to update privacy'));
+    }
+  };
+
+  const handleLeaveChat = async () => {
+    if (!currentChat) return;
+
+    const confirmed = await confirm({
+      title: `Leave ${currentChat.type === 'channel' ? 'Channel' : 'Group'}`,
+      message: `Are you sure you want to leave this ${currentChat.type}? You will lose access to all messages and content.`,
+      confirmText: 'Leave',
+      cancelText: 'Stay',
+      variant: 'warning',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await chatService.leaveChat(currentChat.id, currentChat.type as 'group' | 'channel');
+      toast.success(`Left ${currentChat.type} successfully`);
+      // Reload chats and clear current chat
+      await useChatStore.getState().loadChats();
+      useChatStore.getState().setCurrentChat(null);
+      setShowGroupProfileModal(false);
+    } catch (error) {
+      console.error('Failed to leave chat:', error);
+      toast.error(extractErrorMessage(error, 'Failed to leave'));
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    if (!currentChat) return;
+    try {
+      await chatService.deleteChat(currentChat.id, currentChat.type as 'group' | 'channel');
+      toast.success(`${currentChat.type === 'group' ? 'Group' : 'Channel'} deleted successfully`);
+      // Reload chats and clear current chat
+      await useChatStore.getState().loadChats();
+      useChatStore.getState().setCurrentChat(null);
+      setShowGroupProfileModal(false);
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+      toast.error(extractErrorMessage(error, `Failed to delete ${currentChat.type}`));
+    }
+  };
+
+  const handleBlockUser = async (userId: string) => {
+    try {
+      const userService = await import('../services/user.service').then((m) => m.userService);
+      await userService.blockUser(userId);
+      toast.success('User blocked successfully');
+      setShowUserViewerModal(false);
+      setShowUserProfileViewer(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Failed to block user:', error);
+      toast.error(extractErrorMessage(error, 'Failed to block user'));
+    }
+  };
+
+  const handleCreateCustomReaction = async (name: string, image: File | null) => {
+    try {
+      const formData = new FormData();
+      formData.append('Name', name);
+      if (image) {
+        formData.append('file', image);
+      }
+
+      const { reactionService } = await import('../services/reaction.service');
+      await reactionService.createReaction(formData);
+      toast.success('Custom reaction created successfully!');
+    } catch (error: any) {
+      console.error('Failed to create custom reaction:', error);
+      toast.error(extractErrorMessage(error, 'Failed to create custom reaction'));
+      throw error;
+    }
+  };
+
+  const handleUpdateProfile = async (username: string, _email: string, description: string, policy: string, avatar?: File | null) => {
     try {
       const formData = new FormData();
       if (username) formData.append('username', username);
       // Note: Backend doesn't accept email updates in PUT /users/me
-      if (description) formData.append('description', description);
+      // Always send description, even if empty, to avoid validation errors
+      formData.append('description', description || '');
 
       // Backend expects addChatMinLvl as: 0=Everyone, 1=WithConversations, 2=Nobody
       let addChatMinLvl = '0'; // everyone
       if (policy === 'chatted') addChatMinLvl = '1';
       else if (policy === 'nobody') addChatMinLvl = '2';
       formData.append('addChatMinLvl', addChatMinLvl);
+
+      // Add avatar if provided
+      if (avatar) {
+        formData.append('file', avatar);
+      }
 
       const userService = await import('../services/user.service').then((m) => m.userService);
       const updatedUser = await userService.updateProfile(formData);
@@ -2791,10 +1412,10 @@ const Dashboard: React.FC = () => {
       const authStore = useAuthStore.getState();
       authStore.setUser(updatedUser);
 
-      alert('Profile updated successfully!');
+      toast.success('Profile updated successfully!');
     } catch (error: any) {
       console.error('Failed to update profile:', error);
-      alert(`Failed to update profile: ${error.response?.data?.message || error.message || 'Unknown error'}`);
+      toast.error(extractErrorMessage(error, 'Failed to update profile'));
       throw error;
     }
   };
@@ -3005,28 +1626,19 @@ const Dashboard: React.FC = () => {
         setIsLoadingUserProfile(false);
       }
     } else {
-      // It's a group/channel - load its profile
+      // It's a group/channel - open GroupProfileModal
       console.log('[Search] Opening group/channel profile for:', result.name);
       setSelectedUser(null); // Clear any previous user selection
       setIsLoadingUserProfile(true);
       try {
         const chatProfile = await chatService.getChatProfile(result.id);
         console.log('[Search] Loaded chat profile:', chatProfile);
-        // Merge search result with profile, preserving the type
-        const mergedProfile = {
-          ...result,
-          ...chatProfile,
-          type: result.type, // Explicitly preserve type
-          id: result.id // Explicitly preserve id for join button
-        };
-        console.log('[Search] Merged profile:', mergedProfile);
-        setSelectedSearchResult(mergedProfile as any);
-        setShowUserProfileViewer(true);
+        // Set it as current chat and open the group profile modal
+        useChatStore.getState().setCurrentChat(chatProfile as any);
+        setShowGroupProfileModal(true);
       } catch (error) {
         console.error('[Search] Failed to load chat profile:', error);
-        // Still show the profile viewer with the search result data
-        setSelectedSearchResult(result);
-        setShowUserProfileViewer(true);
+        toast.error(extractErrorMessage(error, 'Failed to load profile'));
       } finally {
         setIsLoadingUserProfile(false);
       }
@@ -3038,7 +1650,7 @@ const Dashboard: React.FC = () => {
   const handleSendMessage = async (userId: string, message?: string) => {
     try {
       if (!userId) {
-        alert('Error: User ID not found');
+        toast.error('Error: User ID not found');
         return;
       }
 
@@ -3121,12 +1733,12 @@ const Dashboard: React.FC = () => {
           }
         } catch (error) {
           console.error('[Dashboard] Error sending message:', error);
-          alert('Failed to send message');
+          toast.error(extractErrorMessage(error, 'Failed to send message'));
         }
       }
     } catch (error) {
       console.error('[Dashboard] Failed to open DM:', error);
-      alert('Failed to open direct message');
+      toast.error(extractErrorMessage(error, 'Failed to open direct message'));
     }
   };
 
@@ -3155,7 +1767,7 @@ const Dashboard: React.FC = () => {
       setSelectedSearchResult(null);
     } catch (error) {
       console.error('[Dashboard] Failed to join group/channel:', error);
-      alert('Failed to join group/channel. Please try again.');
+      toast.error(extractErrorMessage(error, 'Failed to join group/channel'));
     } finally {
       setIsJoining(false);
     }
@@ -3163,7 +1775,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className={`${styles.dashboard} ${isDarkMode ? styles.darkMode : ''}`}>
-      <LeftPanel
+      <Sidebar
         chats={chats}
         currentChat={currentChat}
         onSelectChat={(chat) => {
@@ -3191,7 +1803,7 @@ const Dashboard: React.FC = () => {
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
-      <MenuDropdown
+      <SettingsMenu
         isOpen={showMenu}
         onClose={() => setShowMenu(false)}
         onCreateGroup={() => {
@@ -3200,6 +1812,10 @@ const Dashboard: React.FC = () => {
         }}
         onCreateChannel={() => {
           setShowCreateChannelModal(true);
+          setShowMenu(false);
+        }}
+        onCreateCustomReaction={() => {
+          setShowCustomReactionModal(true);
           setShowMenu(false);
         }}
         onEditProfile={() => {
@@ -3215,10 +1831,10 @@ const Dashboard: React.FC = () => {
           setShowMenu(false);
         }}
         isDarkMode={isDarkMode}
-        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        onToggleDarkMode={toggleTheme}
         onLogout={handleLogout}
       />
-      <MainContent
+      <ChatView
         currentChat={currentChat}
         messages={messages}
         isLoadingMessages={isLoading}
@@ -3240,32 +1856,7 @@ const Dashboard: React.FC = () => {
           }
         }}
         onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-      />
-      <RightPanel
-        currentChat={currentChat}
-        onReloadChat={async () => {
-          if (currentChat) {
-            const chatData = await chatService.getChatProfile(currentChat.id);
-            useChatStore.getState().setCurrentChat(chatData);
-            // Also reload messages
-            const fullChat = await chatService.getChat(currentChat.id);
-            setMessages(fullChat.messages || []);
-          }
-        }}
-        onViewUserProfile={async (userId: string) => {
-          setIsLoadingUserProfile(true);
-          setShowUserProfileViewer(true);
-          setSelectedSearchResult(null);
-          try {
-            const userService = await import('../services/user.service').then((m) => m.userService);
-            const userProfile = await userService.getUserProfile(userId);
-            setSelectedUser(userProfile);
-          } catch (error) {
-            console.error('Failed to load user profile:', error);
-          } finally {
-            setIsLoadingUserProfile(false);
-          }
-        }}
+        onOpenChatProfile={() => setShowGroupProfileModal(true)}
       />
 
       {/* Modals */}
@@ -3283,6 +1874,17 @@ const Dashboard: React.FC = () => {
         isDarkMode={isDarkMode}
         isChannel={true}
       />
+      <EditGroupModal
+        isOpen={showEditGroupModal}
+        onClose={() => {
+          setShowEditGroupModal(false);
+          setChatToEdit(null);
+        }}
+        chat={chatToEdit}
+        onUpdate={handleUpdateGroup}
+        isDarkMode={isDarkMode}
+        isChannel={chatToEdit?.type === 'channel'}
+      />
       <UserProfileModal
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
@@ -3291,6 +1893,12 @@ const Dashboard: React.FC = () => {
         isDarkMode={isDarkMode}
       />
       <NotificationsModal isOpen={showNotificationsModal} onClose={() => setShowNotificationsModal(false)} isDarkMode={isDarkMode} />
+      <CustomReactionModal
+        isOpen={showCustomReactionModal}
+        onClose={() => setShowCustomReactionModal(false)}
+        onCreate={handleCreateCustomReaction}
+        isDarkMode={isDarkMode}
+      />
       <AdminPanel isOpen={showAdminPanel} onClose={() => setShowAdminPanel(false)} isDarkMode={isDarkMode} />
       {!selectedSearchResult?.type || selectedSearchResult?.type === 'user' ? (
         <UserProfileViewer
@@ -3322,6 +1930,47 @@ const Dashboard: React.FC = () => {
           chatId={selectedSearchResult?.id}
           isJoining={isJoining}
           isDarkMode={isDarkMode}
+        />
+      )}
+
+      {/* Group/Channel Profile Modal */}
+      {currentChat && (currentChat.type === 'group' || currentChat.type === 'channel') && (
+        <GroupProfileModal
+          isOpen={showGroupProfileModal}
+          onClose={() => setShowGroupProfileModal(false)}
+          chat={currentChat}
+          currentUserId={user?.id || ''}
+          onEditGroup={() => {
+            setShowGroupProfileModal(false);
+            setChatToEdit(currentChat);
+            setShowEditGroupModal(true);
+          }}
+          onLeaveGroup={handleLeaveChat}
+          onDeleteGroup={handleDeleteChat}
+          onBanMember={handleBanMember}
+          onUnbanMember={handleUnbanMember}
+          onUpdatePrivacy={handleUpdatePrivacy}
+          onViewUserProfile={(userId) => {
+            setViewingUserId(userId);
+            setShowUserViewerModal(true);
+          }}
+        />
+      )}
+
+      {/* User Profile Viewer Modal */}
+      {viewingUserId && (
+        <UserProfileViewerModal
+          isOpen={showUserViewerModal}
+          onClose={() => {
+            setShowUserViewerModal(false);
+            setViewingUserId(null);
+          }}
+          userId={viewingUserId}
+          onSendMessage={(userId) => {
+            // TODO: Implement send message functionality
+            console.log('Send message to user:', userId);
+          }}
+          onBlockUser={handleBlockUser}
         />
       )}
     </div>

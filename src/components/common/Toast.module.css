@@ -1,0 +1,191 @@
+/* Toast Notifications - SUPER FANTASTIC Glowing Effects */
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100px) scale(0.8);
+  }
+}
+
+@keyframes progressShrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 8px 32px var(--toast-glow);
+  }
+  50% {
+    box-shadow: 0 12px 48px var(--toast-glow-intense);
+  }
+}
+
+@keyframes iconBounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+.container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.95));
+  border: 2px solid var(--toast-border);
+  backdrop-filter: blur(20px);
+  animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), glowPulse 2s ease-in-out infinite;
+  will-change: transform, opacity, box-shadow;
+  position: relative;
+  overflow: hidden;
+  pointer-events: auto;
+  --toast-color: #818cf8;
+  --toast-glow: rgba(129, 140, 248, 0.3);
+  --toast-glow-intense: rgba(129, 140, 248, 0.5);
+  --toast-border: rgba(129, 140, 248, 0.3);
+}
+
+.toast.exit {
+  animation: slideOut 0.3s ease-in forwards;
+}
+
+/* Success Toast */
+.toast.success {
+  --toast-color: #22c55e;
+  --toast-glow: rgba(34, 197, 94, 0.3);
+  --toast-glow-intense: rgba(34, 197, 94, 0.5);
+  --toast-border: rgba(34, 197, 94, 0.3);
+}
+
+/* Error Toast */
+.toast.error {
+  --toast-color: #ef4444;
+  --toast-glow: rgba(239, 68, 68, 0.3);
+  --toast-glow-intense: rgba(239, 68, 68, 0.5);
+  --toast-border: rgba(239, 68, 68, 0.3);
+}
+
+/* Warning Toast */
+.toast.warning {
+  --toast-color: #f59e0b;
+  --toast-glow: rgba(245, 158, 11, 0.3);
+  --toast-glow-intense: rgba(245, 158, 11, 0.5);
+  --toast-border: rgba(245, 158, 11, 0.3);
+}
+
+/* Info Toast */
+.toast.info {
+  --toast-color: #3b82f6;
+  --toast-glow: rgba(59, 130, 246, 0.3);
+  --toast-glow-intense: rgba(59, 130, 246, 0.5);
+  --toast-border: rgba(59, 130, 246, 0.3);
+}
+
+.iconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--toast-color), color-mix(in srgb, var(--toast-color) 70%, #000));
+  color: white;
+  flex-shrink: 0;
+  box-shadow: 0 4px 15px var(--toast-glow);
+  animation: iconBounce 0.6s ease-out;
+}
+
+.message {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f1f5f9;
+  line-height: 1.4;
+  letter-spacing: 0.2px;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
+  transform: rotate(90deg);
+}
+
+.progressBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--toast-color), color-mix(in srgb, var(--toast-color) 60%, #fff));
+  border-radius: 0 0 16px 16px;
+  animation: progressShrink linear forwards;
+  box-shadow: 0 0 10px var(--toast-glow);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .container {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    max-width: none;
+  }
+
+  .toast {
+    padding: 14px 16px;
+  }
+
+  .message {
+    font-size: 13px;
+  }
+}

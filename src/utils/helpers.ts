@@ -24,13 +24,22 @@ export const truncateText = (text: string, maxLength: number): string => {
   return text.substring(0, maxLength) + '...';
 };
 
-export const getInitials = (name: string): string => {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .substring(0, 2);
+export const getInitials = (name: string | undefined | null): string => {
+  if (!name || name === 'undefined' || name === 'null') {
+    return '?';
+  }
+  const trimmed = String(name).trim();
+  if (!trimmed || trimmed.length === 0) {
+    return '?';
+  }
+  const words = trimmed.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) {
+    return '?';
+  }
+  if (words.length === 1) {
+    return words[0][0]?.toUpperCase() || '?';
+  }
+  return words.map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '?';
 };
 
 export const isValidEmail = (email: string): boolean => {
@@ -67,4 +76,46 @@ export const formatFileSize = (bytes: number): string => {
 
 export const cn = (...classes: (string | undefined | false)[]): string => {
   return classes.filter(Boolean).join(' ');
+};
+
+/**
+ * Formats a last seen timestamp into a human-readable string
+ * Examples: "just now", "5 minutes ago", "2 hours ago", "Yesterday at 3:45 PM", "Monday at 10:30 AM"
+ */
+export const formatLastSeen = (lastSeenISO: string): string => {
+  if (!lastSeenISO) return 'Unknown';
+
+  const lastSeen = new Date(lastSeenISO);
+  const now = new Date();
+  const diffMs = now.getTime() - lastSeen.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  // Just now (< 1 minute)
+  if (diffMins < 1) return 'just now';
+
+  // Minutes ago (1-59 minutes)
+  if (diffMins === 1) return '1 minute ago';
+  if (diffMins < 60) return `${diffMins} minutes ago`;
+
+  // Hours ago (1-23 hours)
+  if (diffHours === 1) return '1 hour ago';
+  if (diffHours < 24) return `${diffHours} hours ago`;
+
+  // Yesterday with time
+  if (diffDays === 1) {
+    const timeStr = lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `Yesterday at ${timeStr}`;
+  }
+
+  // Last week with day name and time
+  if (diffDays < 7) {
+    const dayStr = lastSeen.toLocaleDateString([], { weekday: 'long' });
+    const timeStr = lastSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${dayStr} at ${timeStr}`;
+  }
+
+  // More than a week ago
+  return lastSeen.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 };

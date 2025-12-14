@@ -32,23 +32,64 @@ body {
 /* GRAY THEME (default) */
 :root {
   --primary: #0066ff;
+  --primary-hover: #0052cc;
+  --primary-light: #e6f0ff;
   --secondary: #757575;
   --background: #f0f0f0;
   --surface: #ffffff;
+  --surface-hover: #f8f9fa;
   --chat-self: #0066ff;
   --chat-other: #e8e8e8;
   --text: #1a1a1a;
   --text-muted: #666666;
   --accent: #0066ff;
   --border: #d9d9d9;
+
+  /* Modern Gradients */
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+  --gradient-success: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  --gradient-danger: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+  --gradient-warning: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --gradient-info: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --gradient-chat-self: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+  /* Online Status Colors */
+  --online-color: #22c55e;
+  --online-glow: rgba(34, 197, 94, 0.4);
+  --offline-color: #94a3b8;
+
+  /* Enhanced Shadows */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+  --shadow-glow: 0 0 20px rgba(102, 126, 234, 0.3);
+
+  /* Animation Timing */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+  --transition-bounce: 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
 }
 
 /* WHITE THEME */
 :root.theme-white {
   --primary: #0066ff;
+  --primary-hover: #0052cc;
+  --primary-light: #e6f0ff;
   --secondary: #757575;
   --background: #ffffff;
   --surface: #ffffff;
+  --surface-hover: #f8f9fa;
   --chat-self: #0066ff;
   --chat-other: #f5f5f5;
   --text: #1a1a1a;
@@ -59,16 +100,29 @@ body {
 
 /* Dark mode */
 :root.dark {
-  --primary: #4299e1;
+  --primary: #818cf8;
+  --primary-hover: #6366f1;
+  --primary-light: rgba(129, 140, 248, 0.15);
   --secondary: #a0aec0;
-  --background: #1a202c;
-  --surface: #2d3748;
-  --chat-self: #2c5282;
-  --chat-other: #2d3748;
-  --text: #e2e8f0;
-  --text-muted: #a0aec0;
-  --accent: #3182ce;
-  --border: #4a5568;
+  --background: #0f172a;
+  --surface: #1e293b;
+  --surface-hover: #334155;
+  --chat-self: #6366f1;
+  --chat-other: #1e293b;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --accent: #818cf8;
+  --border: #334155;
+
+  /* Dark mode gradients */
+  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  --gradient-chat-self: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+
+  /* Dark mode shadows */
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
 }
 
 /* ====================== FORM ELEMENTS ====================== */

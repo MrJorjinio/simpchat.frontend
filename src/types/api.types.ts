@@ -31,6 +31,7 @@ export interface User {
   onlineStatus: 'online' | 'offline' | 'away';
   lastSeen: string;
   addMePolicy: 'everyone' | 'chatted' | 'nobody';
+  isBlocked?: boolean;
 }
 
 // Chat Types
