@@ -228,14 +228,14 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
           style={{
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -245,14 +245,10 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
           onClick={onClose}
         >
           <motion.div
-            initial={{ x: '100%', opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '100%', opacity: 0 }}
-            transition={{
-              type: 'spring',
-              stiffness: 300,
-              damping: 30
-            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.15 }}
             style={{
               backgroundColor: 'var(--surface)',
               borderRadius: '12px',
@@ -261,7 +257,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
               maxHeight: '90vh',
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.2)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -741,6 +737,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
           onClick={() => setShowAddMember(false)}
           style={{
             position: 'fixed',
@@ -748,7 +745,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -757,16 +754,17 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
           }}
         >
           <motion.div
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.9, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.15 }}
             onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: 'var(--surface)',
-              borderRadius: '16px',
+              borderRadius: '12px',
               maxWidth: '500px',
               width: '100%',
-              padding: '24px',
+              padding: '20px',
               maxHeight: '80vh',
               overflow: 'auto',
             }}
@@ -932,77 +930,12 @@ const MemberItem: React.FC<MemberItemProps> = ({
   const getRoleBadge = () => {
     if (member.role === 'admin') {
       return (
-        <motion.span
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{
-            type: 'spring',
-            stiffness: 500,
-            damping: 15
-          }}
+        <span
           style={{
-            padding: '4px 10px',
-            backgroundColor: '#ffd43b',
+            padding: '3px 8px',
+            backgroundColor: '#fbbf24',
             color: '#000',
-            borderRadius: '6px',
-            fontSize: '11px',
-            fontWeight: 700,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            boxShadow: '0 2px 8px rgba(255, 212, 59, 0.4)',
-          }}
-        >
-          <Crown size={14} />
-          Admin
-        </motion.span>
-      );
-    }
-    if (member.role === 'moderator') {
-      return (
-        <motion.span
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{
-            type: 'spring',
-            stiffness: 500,
-            damping: 15,
-            delay: 0.05
-          }}
-          style={{
-            padding: '4px 10px',
-            backgroundColor: '#74c0fc',
-            color: '#000',
-            borderRadius: '6px',
-            fontSize: '11px',
-            fontWeight: 700,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            boxShadow: '0 2px 8px rgba(116, 192, 252, 0.4)',
-          }}
-        >
-          <Shield size={14} />
-          Mod
-        </motion.span>
-      );
-    }
-    if (member.role === 'member') {
-      return (
-        <motion.span
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{
-            type: 'spring',
-            stiffness: 500,
-            damping: 15,
-            delay: 0.1
-          }}
-          style={{
-            padding: '4px 10px',
-            backgroundColor: '#adb5bd',
-            color: '#fff',
-            borderRadius: '6px',
+            borderRadius: '4px',
             fontSize: '11px',
             fontWeight: 600,
             display: 'inline-flex',
@@ -1010,8 +943,48 @@ const MemberItem: React.FC<MemberItemProps> = ({
             gap: '4px',
           }}
         >
+          <Crown size={12} />
+          Admin
+        </span>
+      );
+    }
+    if (member.role === 'moderator') {
+      return (
+        <span
+          style={{
+            padding: '3px 8px',
+            backgroundColor: '#60a5fa',
+            color: '#000',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          <Shield size={12} />
+          Mod
+        </span>
+      );
+    }
+    if (member.role === 'member') {
+      return (
+        <span
+          style={{
+            padding: '3px 8px',
+            backgroundColor: '#94a3b8',
+            color: '#fff',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 500,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
           Member
-        </motion.span>
+        </span>
       );
     }
     return null;
@@ -1105,66 +1078,60 @@ const MemberItem: React.FC<MemberItemProps> = ({
         </div>
       </div>
 
-      {/* Actions - Beautiful Glowing Menu */}
+      {/* Actions Menu */}
       {canManage && (
         <div style={{ position: 'relative' }}>
-          <motion.button
+          <button
             onClick={(e) => {
               e.stopPropagation();
               setShowActions(!showActions);
             }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
+              background: 'none',
+              border: 'none',
               cursor: 'pointer',
+              padding: '6px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: showActions
-                ? '0 0 15px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(0, 0, 0, 0.15)'
-                : '0 2px 8px rgba(0, 0, 0, 0.1)',
-              transition: 'all 0.3s ease',
+              borderRadius: '6px',
+              transition: 'background 0.15s ease',
             }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
           >
-            <Settings size={16} color="#818cf8" />
-          </motion.button>
+            <Settings size={18} color="var(--text-muted)" />
+          </button>
           <AnimatePresence>
             {showActions && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.1 }}
                 style={{
                   position: 'absolute',
                   right: 0,
                   bottom: '100%',
-                  marginBottom: '8px',
-                  background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.95))',
-                  border: '2px solid rgba(99, 102, 241, 0.3)',
-                  borderRadius: '16px',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(99, 102, 241, 0.2)',
-                  minWidth: '200px',
+                  marginBottom: '4px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+                  minWidth: '180px',
                   zIndex: 1000,
                   overflow: 'hidden',
-                  backdropFilter: 'blur(20px)',
                 }}
               >
                 {/* Header */}
                 <div style={{
-                  padding: '12px 16px',
-                  borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1))',
+                  padding: '10px 12px',
+                  borderBottom: '1px solid var(--border)',
                 }}>
                   <span style={{
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    color: '#818cf8',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px',
                   }}>
@@ -1173,107 +1140,74 @@ const MemberItem: React.FC<MemberItemProps> = ({
                 </div>
 
                 {/* Permissions Button */}
-                <motion.button
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowPermissions(!showPermissions);
                   }}
-                  whileHover={{ backgroundColor: 'rgba(99, 102, 241, 0.15)' }}
                   style={{
                     width: '100%',
-                    padding: '12px 16px',
+                    padding: '10px 12px',
                     background: 'transparent',
                     border: 'none',
                     textAlign: 'left',
                     cursor: 'pointer',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     fontWeight: 500,
-                    color: '#f1f5f9',
+                    color: 'var(--text)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px',
-                    transition: 'all 0.2s ease',
+                    gap: '8px',
+                    transition: 'background 0.1s ease',
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(102, 126, 234, 0.4)',
-                  }}>
-                    <Key size={14} color="white" />
-                  </div>
+                  <Key size={14} color="var(--text-muted)" />
                   Manage Permissions
-                </motion.button>
+                </button>
 
                 {/* Permissions List */}
-                <AnimatePresence>
-                  {showPermissions && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      style={{
-                        borderTop: '1px solid rgba(99, 102, 241, 0.15)',
-                        background: 'rgba(0, 0, 0, 0.2)',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {AVAILABLE_PERMISSIONS.map((permission, idx) => (
-                        <motion.button
-                          key={permission}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.03 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddPermission(permission);
-                          }}
-                          whileHover={{
-                            backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                            paddingLeft: '24px',
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '10px 16px 10px 20px',
-                            background: 'transparent',
-                            border: 'none',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            color: '#94a3b8',
-                            transition: 'all 0.2s ease',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                          }}
-                        >
-                          <span style={{
-                            width: '6px',
-                            height: '6px',
-                            borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                            boxShadow: '0 0 6px rgba(102, 126, 234, 0.5)',
-                          }} />
-                          {permission}
-                        </motion.button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {showPermissions && (
+                  <div
+                    style={{
+                      borderTop: '1px solid var(--border)',
+                      background: 'var(--background)',
+                    }}
+                  >
+                    {AVAILABLE_PERMISSIONS.map((permission) => (
+                      <button
+                        key={permission}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddPermission(permission);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px 8px 24px',
+                          background: 'transparent',
+                          border: 'none',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          color: 'var(--text-muted)',
+                          transition: 'background 0.1s ease',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        {permission}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Danger Actions */}
                 <div style={{
-                  borderTop: '1px solid rgba(239, 68, 68, 0.2)',
-                  marginTop: '4px',
+                  borderTop: '1px solid var(--border)',
                 }}>
                   {onBanMember && (
-                    <motion.button
+                    <button
                       onClick={async (e) => {
                         e.stopPropagation();
                         const confirmed = await confirm({
@@ -1288,76 +1222,56 @@ const MemberItem: React.FC<MemberItemProps> = ({
                         }
                         setShowActions(false);
                       }}
-                      whileHover={{ backgroundColor: 'rgba(239, 68, 68, 0.15)' }}
                       style={{
                         width: '100%',
-                        padding: '12px 16px',
+                        padding: '10px 12px',
                         background: 'transparent',
                         border: 'none',
                         textAlign: 'left',
                         cursor: 'pointer',
-                        fontSize: '14px',
+                        fontSize: '13px',
                         fontWeight: 500,
-                        color: '#f87171',
+                        color: '#ef4444',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
-                        transition: 'all 0.2s ease',
+                        gap: '8px',
+                        transition: 'background 0.1s ease',
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
-                      }}>
-                        <Shield size={14} color="white" />
-                      </div>
+                      <Shield size={14} />
                       Ban Member
-                    </motion.button>
+                    </button>
                   )}
                   {onKick && (
-                    <motion.button
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onKick(member.userId);
                         setShowActions(false);
                       }}
-                      whileHover={{ backgroundColor: 'rgba(239, 68, 68, 0.15)' }}
                       style={{
                         width: '100%',
-                        padding: '12px 16px',
+                        padding: '10px 12px',
                         background: 'transparent',
                         border: 'none',
                         textAlign: 'left',
                         cursor: 'pointer',
-                        fontSize: '14px',
+                        fontSize: '13px',
                         fontWeight: 500,
-                        color: '#f87171',
+                        color: '#f97316',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
-                        transition: 'all 0.2s ease',
+                        gap: '8px',
+                        transition: 'background 0.1s ease',
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(249, 115, 22, 0.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '8px',
-                        background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(249, 115, 22, 0.4)',
-                      }}>
-                        <Trash2 size={14} color="white" />
-                      </div>
+                      <Trash2 size={14} />
                       Remove Member
-                    </motion.button>
+                    </button>
                   )}
                 </div>
               </motion.div>

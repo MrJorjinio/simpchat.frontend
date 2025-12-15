@@ -133,43 +133,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className={`${styles.leftPanel} ${isDarkMode ? styles.darkMode : ''} ${isMobileOpen ? styles.mobileOpen : ''}`}>
         {/* Header */}
         <div className={styles.panelHeader}>
-        <h1 className={styles.title}>Chats</h1>
-        <motion.button
+        <button
           className={styles.menuButton}
           onClick={onMenuOpen}
           title="Settings"
-          whileHover={{
-            scale: 1.1,
-            boxShadow: '0 0 20px rgba(102, 126, 234, 0.5)',
-          }}
-          whileTap={{ scale: 0.95 }}
           style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'transparent',
             border: 'none',
-            borderRadius: '12px',
-            width: '42px',
-            height: '42px',
+            borderRadius: '8px',
+            width: '36px',
+            height: '36px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
-            position: 'relative',
-            overflow: 'hidden',
+            color: isDarkMode ? '#94a3b8' : '#64748b',
+            transition: 'background 0.15s ease, color 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+            e.currentTarget.style.color = isDarkMode ? '#f1f5f9' : '#1e293b';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = isDarkMode ? '#94a3b8' : '#64748b';
           }}
         >
-          <motion.div
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              background: 'linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%)',
-            }}
-          />
-          <Menu size={20} color="white" style={{ position: 'relative', zIndex: 1 }} />
-        </motion.button>
+          <Menu size={22} />
+        </button>
       </div>
 
       {/* Search Bar */}

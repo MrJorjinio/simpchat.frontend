@@ -130,33 +130,35 @@
 }
 
 .closeBtn {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   border: none;
-  background: rgba(0, 0, 0, 0.05);
+  background: transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #64748b;
-  transition: all 0.3s ease;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.closeBtn svg {
+  stroke: currentColor;
+  stroke-width: 2.5px;
 }
 
 .closeBtn:hover {
-  background: rgba(102, 126, 234, 0.15);
-  color: #667eea;
-  transform: rotate(90deg);
+  color: #ef4444;
+  transform: scale(1.1);
 }
 
 .modal.dark .closeBtn {
-  background: rgba(255, 255, 255, 0.1);
   color: #94a3b8;
 }
 
 .modal.dark .closeBtn:hover {
-  background: rgba(99, 102, 241, 0.2);
-  color: #818cf8;
+  color: #ef4444;
 }
 
 /* ===== CONTENT ===== */

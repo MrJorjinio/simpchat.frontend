@@ -59,8 +59,22 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
         {getIcon()}
       </div>
       <span className={styles.message}>{toast.message}</span>
-      <button className={styles.closeBtn} onClick={handleClose}>
-        <X size={16} />
+      <button
+        onClick={handleClose}
+        style={{
+          background: 'rgba(255, 255, 255, 0.15)',
+          border: 'none',
+          borderRadius: '6px',
+          color: '#ffffff',
+          cursor: 'pointer',
+          padding: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginLeft: '8px',
+        }}
+      >
+        <X size={16} strokeWidth={3} />
       </button>
       <div className={styles.progressBar} style={{ animationDuration: `${toast.duration || 4000}ms` }} />
     </div>

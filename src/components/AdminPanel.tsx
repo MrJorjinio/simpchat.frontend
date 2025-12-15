@@ -94,7 +94,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isDarkMode = f
       >
         <div className={styles.modalHeader}>
           <h2>🔐 Admin Panel - User Management</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>

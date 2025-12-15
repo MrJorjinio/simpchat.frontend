@@ -9,9 +9,10 @@ import {
   Sun,
   Moon,
   LogOut,
-  Settings,
-  Sparkles,
-  X
+  X,
+  Users,
+  Radio,
+  Palette
 } from 'lucide-react';
 import styles from './SettingsMenu.module.css';
 
@@ -47,31 +48,28 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
   const menuSections = [
     {
       title: 'Create',
-      icon: Sparkles,
       items: [
-        { icon: Plus, label: 'New Group', onClick: onCreateGroup, color: '#667eea' },
-        { icon: Megaphone, label: 'New Channel', onClick: onCreateChannel, color: '#f093fb' },
-        { icon: Smile, label: 'Custom Reaction', onClick: onCreateCustomReaction, color: '#4facfe' },
+        { icon: Users, label: 'New Group', onClick: onCreateGroup, color: '#3b82f6' },
+        { icon: Radio, label: 'New Channel', onClick: onCreateChannel, color: '#8b5cf6' },
+        { icon: Smile, label: 'Custom Reaction', onClick: onCreateCustomReaction, color: '#f59e0b' },
       ],
     },
     {
       title: 'Account',
-      icon: User,
       items: [
-        { icon: User, label: 'Edit Profile', onClick: onEditProfile, color: '#11998e' },
-        { icon: Bell, label: 'Notifications', onClick: onShowNotifications, color: '#fa709a' },
-        { icon: Shield, label: 'Admin Panel', onClick: onShowAdminPanel, color: '#a8edea' },
+        { icon: User, label: 'Edit Profile', onClick: onEditProfile, color: '#10b981' },
+        { icon: Bell, label: 'Notifications', onClick: onShowNotifications, color: '#ef4444' },
+        { icon: Shield, label: 'Admin Panel', onClick: onShowAdminPanel, color: '#6366f1' },
       ],
     },
     {
       title: 'Preferences',
-      icon: Settings,
       items: [
         {
           icon: isDarkMode ? Sun : Moon,
           label: isDarkMode ? 'Light Mode' : 'Dark Mode',
           onClick: onToggleDarkMode,
-          color: isDarkMode ? '#f6d365' : '#4ca1af',
+          color: isDarkMode ? '#f59e0b' : '#6366f1',
         },
       ],
     },
@@ -82,34 +80,36 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
       <div className={styles.backdrop} onClick={onClose} />
       <div className={`${styles.menu} ${isDarkMode ? styles.dark : ''}`}>
         <div className={styles.header}>
-          <div className={styles.headerLeft}>
-            <div className={styles.iconWrapper}>
-              <Settings size={20} color="white" />
-            </div>
-            <div>
-              <h3 className={styles.title}>Settings</h3>
-              <p className={styles.subtitle}>Customize your experience</p>
-            </div>
-          </div>
-          <button className={styles.closeBtn} onClick={onClose}>
-            <X size={18} />
+          <h3 className={styles.title}>Settings</h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: isDarkMode ? '#94a3b8' : '#64748b',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <X size={22} strokeWidth={2.5} />
           </button>
         </div>
 
         <div className={styles.content}>
-          {menuSections.map((section, idx) => (
-            <div key={section.title} className={styles.section} style={{ animationDelay: `${idx * 0.05}s` }}>
+          {menuSections.map((section) => (
+            <div key={section.title} className={styles.section}>
               <div className={styles.sectionHeader}>
-                <section.icon size={14} />
                 <span>{section.title}</span>
               </div>
               <div className={styles.sectionItems}>
-                {section.items.map((item, itemIdx) => (
+                {section.items.map((item) => (
                   <button
                     key={item.label}
                     className={styles.menuItem}
                     onClick={item.onClick}
-                    style={{ animationDelay: `${(idx * 3 + itemIdx) * 0.03}s` }}
                   >
                     <div className={styles.itemIcon} style={{ background: item.color }}>
                       <item.icon size={18} color="white" />

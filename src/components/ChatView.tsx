@@ -99,7 +99,18 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
       <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
         <div className={styles.modalHeader}>
           <h2>Add Member</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>
@@ -280,7 +291,18 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
       <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
         <div className={styles.modalHeader}>
           <h2>Manage Permissions - {member.user.username}</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>
@@ -1198,9 +1220,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
           className={styles.inputField}
           disabled={isSending}
         />
-        <button className={styles.emojiButton} title="Emoji">
-          😊
-        </button>
         <input
           ref={fileInputRef}
           type="file"

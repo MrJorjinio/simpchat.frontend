@@ -66,7 +66,18 @@ const CustomReactionModal: React.FC<CustomReactionModalProps> = ({ isOpen, onClo
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2>Create Custom Reaction</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>
@@ -168,7 +179,18 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2>{isChannel ? 'Create Channel' : 'Create Group'}</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>
@@ -291,7 +313,18 @@ const EditGroupModal: React.FC<EditGroupModalProps> = ({ isOpen, onClose, chat, 
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2>{isChannel ? 'Edit Channel' : 'Edit Group'}</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>
@@ -418,7 +451,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
       <div className={styles.modal} onClick={(e) => e.stopPropagation()} key={`profile-modal-${user.id}`}>
         <div className={styles.modalHeader}>
           <h2 style={{ color: 'var(--text)' }}>Edit Profile</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>
@@ -581,7 +625,18 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
           <h2>Notifications</h2>
-          <button className={styles.closeButton} onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#64748b',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: 1,
+            }}
+          >
             ✕
           </button>
         </div>
@@ -709,280 +764,6 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
   );
 };
 
-interface UserProfileViewerProps {
-  isOpen: boolean;
-  onClose: () => void;
-  user: User | null;
-  isLoading: boolean;
-  onSendMessage: (userId: string, message?: string) => Promise<void>;
-  onJoinGroup?: (chatId: string) => Promise<void>;
-  isGroup?: boolean;
-  isChannel?: boolean;
-  chatId?: string;
-  isJoining?: boolean;
-  isDarkMode?: boolean;
-}
-
-const UserProfileViewer: React.FC<UserProfileViewerProps> = ({
-  isOpen,
-  onClose,
-  user,
-  isLoading,
-  onSendMessage,
-  onJoinGroup,
-  isGroup,
-  isChannel,
-  chatId,
-  isJoining,
-  isDarkMode,
-}) => {
-  const [isSending, setIsSending] = useState(false);
-  const [messageText, setMessageText] = useState('');
-
-  console.log('[UserProfileViewer] Rendering with:', { isOpen, isGroup, isChannel, user: user?.username, messageText, isSending });
-
-  if (!isOpen) return null;
-
-  // Handle field name variations from API
-  const getUsername = () => {
-    if (!user) return 'Unknown';
-    // For groups/channels, use name
-    if (isGroup || isChannel) {
-      return (user as any)?.name || (user as any)?.displayName || 'Unknown';
-    }
-    // For users, try multiple field names
-    return (user as any)?.username || (user as any)?.displayName || (user as any)?.name || 'Unknown';
-  };
-
-  const getAvatar = () => {
-    if (!user) return '';
-    return (user as any)?.avatarUrl || (user as any)?.avatar || (user as any)?.profileImage || (user as any)?.icon || '';
-  };
-
-  const getDescription = () => {
-    if (!user) return '';
-    return (user as any)?.description || (user as any)?.bio || '';
-  };
-
-  const getMemberCount = () => {
-    if (!user) return 0;
-    return (user as any)?.members?.length || (user as any)?.memberCount || 0;
-  };
-
-  const getPrivacy = () => {
-    if (!user) return 'Unknown';
-    return (user as any)?.isPrivate ? 'Private' : 'Public';
-  };
-
-  const handleSendMessage = async () => {
-    if (!user) {
-      console.error('[ProfileViewer] User object is null/undefined');
-      return;
-    }
-
-    // Debug: Log the entire user object to understand its structure
-    console.log('[ProfileViewer] User object structure:', {
-      fullUser: user,
-      keys: Object.keys(user),
-      id: (user as any).id,
-      userId: (user as any).userId,
-      entityId: (user as any).entityId,
-      email: (user as any).email,
-      username: (user as any).username,
-      all: JSON.stringify(user),
-    });
-
-    // Get the user ID from various possible field names, or use the prop userId as fallback
-    let userId = (user as any).id || (user as any).userId || (user as any).entityId;
-
-    // If still no ID found, the Dashboard component should have passed userId prop
-    // This is a fallback for safety
-    console.log('[ProfileViewer] Extracted userId:', userId);
-
-    if (!userId) {
-      console.error('[ProfileViewer] Cannot send message: user ID is missing from user object:', user);
-      console.error('[ProfileViewer] All available fields:', Object.keys(user));
-      toast.error('Error: User ID not found. Please try again.');
-      return;
-    }
-
-    setIsSending(true);
-    try {
-      console.log('[ProfileViewer] Sending message/creating DM with user ID:', userId, 'Type:', typeof userId);
-      // Pass the message text if provided (optional)
-      const messageToSend = messageText.trim() ? messageText.trim() : undefined;
-      console.log('[ProfileViewer] Message to send:', messageToSend);
-      console.log('[ProfileViewer] onSendMessage function:', typeof onSendMessage);
-      if (!onSendMessage) {
-        throw new Error('onSendMessage callback is not defined');
-      }
-      await onSendMessage(userId, messageToSend);
-      console.log('[ProfileViewer] onSendMessage completed successfully');
-      setMessageText('');
-      onClose();
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      toast.error(extractErrorMessage(error, 'Failed to create conversation'));
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  return (
-    <div className={`${styles.modalOverlay} ${isDarkMode ? styles.darkMode : ''}`} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.modalHeader}>
-          <h2>{isGroup || isChannel ? 'Join' : 'Profile'}</h2>
-          <button className={styles.closeButton} onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <div className={styles.modalBody}>
-          {isLoading ? (
-            <div className={styles.loading}>Loading...</div>
-          ) : user ? (
-            <div className={styles.profileContent}>
-              <div className={styles.avatarSection}>
-                <div className={styles.largeAvatar}>
-                  <Avatar src={getAvatar()} name={getUsername()} fallbackClass={styles.avatarFallback} />
-                </div>
-              </div>
-              <div className={styles.profileInfo}>
-                <div className={styles.profileField}>
-                  <label>{isGroup || isChannel ? 'Name' : 'Username/Name'}</label>
-                  <p>{getUsername()}</p>
-                </div>
-                {!isGroup && !isChannel && user.email && (
-                  <div className={styles.profileField}>
-                    <label>Email</label>
-                    <p>{user.email}</p>
-                  </div>
-                )}
-                {getDescription() && (
-                  <div className={styles.profileField}>
-                    <label>{isGroup || isChannel ? 'Description' : 'Bio/Description'}</label>
-                    <p>{getDescription()}</p>
-                  </div>
-                )}
-                {(isGroup || isChannel) && getMemberCount() > 0 && (
-                  <div className={styles.profileField}>
-                    <label>Members</label>
-                    <p>{getMemberCount()}</p>
-                  </div>
-                )}
-                {(isGroup || isChannel) && (
-                  <div className={styles.profileField}>
-                    <label>Privacy</label>
-                    <p>{getPrivacy()}</p>
-                  </div>
-                )}
-                {!isGroup && !isChannel && (
-                  <>
-                    <div className={styles.profileField}>
-                      <label>Status</label>
-                      <p>{user.onlineStatus || 'Offline'}</p>
-                    </div>
-                    {(user as any)?.lastSeen && (
-                      <div className={styles.profileField}>
-                        <label>Last Seen</label>
-                        <p>{new Date((user as any).lastSeen).toLocaleString()}</p>
-                      </div>
-                    )}
-                    {(user as any)?.addMePolicy && (
-                      <div className={styles.profileField}>
-                        <label>Add Policy</label>
-                        <p style={{ textTransform: 'capitalize' }}>{(user as any).addMePolicy}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className={styles.emptyState}>User not found</div>
-          )}
-        </div>
-        {user && !isGroup && !isChannel && (() => {
-          console.log('[UserProfileViewer] Rendering message input for user:', user?.username);
-          return (
-          <div className={styles.modalBody} style={{ padding: '16px', borderTop: '1px solid var(--light-border)' }}>
-            <input
-              type="text"
-              placeholder="Type a message... (optional)"
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleSendMessage();
-                }
-              }}
-              className={styles.inputField}
-              style={{ marginBottom: '0' }}
-            />
-          </div>
-        );
-        })()}
-        {user && (
-          <div className={styles.modalFooter}>
-            {isGroup || isChannel ? (
-              <>
-                <button onClick={onClose} className={styles.secondaryButton}>
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (onJoinGroup && chatId) {
-                      try {
-                        console.log('[Modal] Join button clicked for:', chatId);
-                        await onJoinGroup(chatId);
-                        console.log('[Modal] Join successful');
-                      } catch (error) {
-                        console.error('[Modal] Join error:', error);
-                        toast.error(extractErrorMessage(error, 'Failed to join'));
-                      }
-                    } else {
-                      console.warn('[Modal] Missing onJoinGroup or chatId:', { onJoinGroup: !!onJoinGroup, chatId });
-                      toast.error('Unable to join. Missing required information.');
-                    }
-                  }}
-                  disabled={isJoining}
-                  className={styles.primaryButton}
-                >
-                  {isJoining ? 'Joining...' : 'Join'}
-                </button>
-              </>
-            ) : (() => {
-              console.log('[UserProfileViewer] Rendering Send button with isSending:', isSending);
-              return (
-              <>
-                <button onClick={onClose} className={styles.secondaryButton}>
-                  Close
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      console.log('[Modal] Send message button clicked with messageText:', messageText);
-                      await handleSendMessage();
-                      console.log('[Modal] Message send successful');
-                    } catch (error) {
-                      console.error('[Modal] Send message error:', error);
-                    }
-                  }}
-                  disabled={isSending}
-                  className={styles.primaryButton}
-                >
-                  {isSending ? 'Sending...' : 'Send Message'}
-                </button>
-              </>
-              );
-            })()}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // MAIN COMPONENTS
 
 // MAIN DASHBOARD COMPONENT
@@ -1099,8 +880,18 @@ const Dashboard: React.FC = () => {
     useChatStore.getState().setCurrentChat(chat);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    const confirmed = await confirm({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      confirmText: 'Sign Out',
+      cancelText: 'Cancel',
+      variant: 'warning',
+    });
+
+    if (confirmed) {
+      logout();
+    }
   };
 
   const handleSendChatMessage = async (content: string, file?: File) => {
@@ -1900,36 +1691,18 @@ const Dashboard: React.FC = () => {
         isDarkMode={isDarkMode}
       />
       <AdminPanel isOpen={showAdminPanel} onClose={() => setShowAdminPanel(false)} isDarkMode={isDarkMode} />
-      {!selectedSearchResult?.type || selectedSearchResult?.type === 'user' ? (
-        <UserProfileViewer
+      {/* User Profile from Search */}
+      {showUserProfileViewer && selectedUser && (
+        <UserProfileViewerModal
           isOpen={showUserProfileViewer}
           onClose={() => {
             setShowUserProfileViewer(false);
             setSelectedUser(null);
             setSelectedSearchResult(null);
           }}
-          user={selectedUser}
-          isLoading={isLoadingUserProfile}
+          userId={selectedUser.id}
           onSendMessage={handleSendMessage}
-          isDarkMode={isDarkMode}
-        />
-      ) : (
-        <UserProfileViewer
-          isOpen={showUserProfileViewer}
-          onClose={() => {
-            setShowUserProfileViewer(false);
-            setSelectedSearchResult(null);
-            setSelectedUser(null);
-          }}
-          user={selectedSearchResult as any}
-          isLoading={isLoadingUserProfile}
-          onSendMessage={handleSendMessage}
-          onJoinGroup={handleJoinGroup}
-          isGroup={selectedSearchResult?.type === 'group'}
-          isChannel={selectedSearchResult?.type === 'channel'}
-          chatId={selectedSearchResult?.id}
-          isJoining={isJoining}
-          isDarkMode={isDarkMode}
+          onBlockUser={handleBlockUser}
         />
       )}
 

@@ -228,7 +228,7 @@
   border: 1px solid rgba(59, 130, 246, 0.2);
   font-size: 20px;
   cursor: pointer;
-  color: var(--primary);
+  color: #ffffff;
   padding: 8px;
   width: 40px;
   height: 40px;
@@ -242,7 +242,7 @@
 
 .menuButton:hover {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(6, 182, 212, 0.1) 100%);
-  border-color: var(--primary);
+  border-color: #ffffff;
   transform: translateY(-3px);
   box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
 }
@@ -276,7 +276,7 @@
 }
 
 .searchInput:focus {
-  border-color: var(--primary);
+  border-color: #ffffff;
   background: linear-gradient(135deg, var(--light-surface) 0%, #f0f9ff 100%);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), inset 0 0 0 1px rgba(59, 130, 246, 0.1);
 }
@@ -288,7 +288,7 @@
 }
 
 .leftPanel.darkMode .searchInput:focus {
-  border-color: var(--primary);
+  border-color: #ffffff;
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), inset 0 0 0 1px rgba(59, 130, 246, 0.2);
 }
 
@@ -436,20 +436,20 @@
 }
 
 .chatList::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.3);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
 }
 
 .chatList::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.5);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .leftPanel.darkMode .chatList::-webkit-scrollbar-thumb {
-  background: rgba(96, 165, 250, 0.2);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .leftPanel.darkMode .chatList::-webkit-scrollbar-thumb:hover {
-  background: rgba(96, 165, 250, 0.4);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .emptyState,
@@ -471,25 +471,17 @@
   align-items: center;
   padding: 12px;
   cursor: pointer;
-  border-radius: 14px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 10px;
+  transition: background 0.1s ease;
   position: relative;
-  border: 1px solid transparent;
-  will-change: transform, box-shadow;
 }
 
 .chatItem:hover {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.08) 100%);
-  transform: translateX(6px) scale(1.01);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
-  border-color: rgba(102, 126, 234, 0.2);
-  animation: chatItemHoverGlow 2s ease-in-out infinite;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .chatItem.active {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.15) 100%);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25), inset 0 0 0 1px rgba(102, 126, 234, 0.3);
-  border-color: rgba(102, 126, 234, 0.3);
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .chatItem.active::before {
@@ -498,52 +490,42 @@
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 4px;
-  height: 60%;
-  background: linear-gradient(180deg, #667eea, #764ba2);
-  border-radius: 0 4px 4px 0;
-  box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+  width: 3px;
+  height: 50%;
+  background: #6366f1;
+  border-radius: 0 3px 3px 0;
 }
 
 .leftPanel.darkMode .chatItem:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.12) 100%);
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.25);
-  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .leftPanel.darkMode .chatItem.active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.2) 100%);
-  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3), inset 0 0 0 1px rgba(99, 102, 241, 0.4);
-  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.15);
 }
 
 .leftPanel.darkMode .chatItem.active::before {
-  background: linear-gradient(180deg, #818cf8, #a78bfa);
+  background: #818cf8;
 }
 
 .chatAvatar {
   width: 48px;
   height: 48px;
-  border-radius: 14px;
+  border-radius: 12px;
   margin-right: 12px;
   flex-shrink: 0;
   overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #6366f1;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
   color: white;
   position: relative;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .chatItem:hover .chatAvatar {
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.4);
+  /* No transform on hover */
 }
 
 .chatAvatar img {
@@ -791,7 +773,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--primary);
+  color: #ffffff;
   font-size: 16px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
@@ -943,7 +925,7 @@
 }
 
 .messageInput:focus {
-  border-color: var(--primary);
+  border-color: #ffffff;
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 
@@ -954,7 +936,7 @@
 }
 
 .dashboard.darkMode .messageInput:focus {
-  border-color: var(--primary);
+  border-color: #ffffff;
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(59, 130, 246, 0.2);
 }
 
@@ -968,58 +950,33 @@
 
 /* Send Button */
 .sendButton {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #6366f1;
   border: none;
   color: white;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 0.15s ease;
   flex-shrink: 0;
   font-weight: 600;
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-  position: relative;
-  overflow: hidden;
-}
-
-.sendButton::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.2) 50%, transparent 70%);
-  background-size: 200% 200%;
-  animation: shimmer 2s linear infinite;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.sendButton:hover::before {
-  opacity: 1;
 }
 
 .sendButton:hover {
-  transform: translateY(-3px) scale(1.05);
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+  background: #5558e3;
 }
 
 .sendButton:active {
-  transform: translateY(-1px) scale(1.02);
+  background: #4f46e5;
 }
 
 .sendButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: translateY(0) scale(1);
-  box-shadow: none;
-}
-
-.sendButton:not(:disabled):hover {
-  animation: buttonPulse 1s ease-in-out infinite;
 }
 
 /* ==================== MODALS ==================== */
@@ -1031,24 +988,11 @@
 @keyframes modalSlideUp {
   from {
     opacity: 0;
-    transform: translateY(40px) scale(0.95);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes modalGlow {
-  0%, 100% {
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2),
-                0 0 40px rgba(102, 126, 234, 0.3),
-                inset 0 0 60px rgba(102, 126, 234, 0.03);
-  }
-  50% {
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2),
-                0 0 60px rgba(102, 126, 234, 0.5),
-                inset 0 0 80px rgba(102, 126, 234, 0.05);
+    transform: translateY(0);
   }
 }
 
@@ -1058,92 +1002,83 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(30, 27, 75, 0.5) 100%);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(12px);
-  animation: modalFadeIn 0.3s ease;
+  animation: modalFadeIn 0.15s ease;
 }
 
 .modal {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
-  border-radius: 24px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2), 0 0 40px rgba(102, 126, 234, 0.3);
-  max-width: 500px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  max-width: 480px;
   width: 90%;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), modalGlow 4s ease-in-out infinite;
-  border: 2px solid rgba(102, 126, 234, 0.2);
-  will-change: transform, box-shadow;
-  backdrop-filter: blur(20px);
+  animation: modalSlideUp 0.2s ease-out;
+  overflow: hidden;
 }
 
 .modalOverlay.darkMode .modal {
-  background: linear-gradient(145deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.95));
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 50px rgba(99, 102, 241, 0.3);
-  border-color: rgba(99, 102, 241, 0.3);
+  background: #1e293b;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
 }
 
 .modalHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px;
-  border-bottom: 1px solid var(--light-border);
-  background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(240, 249, 255, 0.6) 100%);
-  backdrop-filter: blur(8px);
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .modalOverlay.darkMode .modalHeader {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(51, 65, 85, 0.5) 100%);
-  border-bottom-color: var(--dark-border);
-  backdrop-filter: blur(8px);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 .modalHeader h2 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.modalOverlay.darkMode .modalHeader h2 {
+  color: #f1f5f9;
 }
 
 .closeButton {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: transparent;
+  border: none;
   font-size: 24px;
-  color: var(--primary);
+  font-weight: 400;
+  color: #64748b;
   cursor: pointer;
   padding: 0;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  border-radius: 10px;
+  transition: color 0.2s ease, transform 0.2s ease;
+  border-radius: 6px;
 }
 
 .closeButton:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(6, 182, 212, 0.1) 100%);
-  border-color: var(--primary);
-  transform: rotate(90deg);
+  color: #ef4444;
+  transform: scale(1.1);
 }
 
 .modalOverlay.darkMode .closeButton {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.12) 0%, rgba(6, 182, 212, 0.06) 100%);
-  border-color: rgba(96, 165, 250, 0.2);
-  color: #60a5fa;
+  color: #94a3b8;
 }
 
 .modalOverlay.darkMode .closeButton:hover {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.2) 0%, rgba(6, 182, 212, 0.1) 100%);
+  color: #ef4444;
 }
 
 .modalBody {
@@ -1158,163 +1093,142 @@
 }
 
 .modalBody::-webkit-scrollbar-track {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(0, 0, 0, 0.05);
   border-radius: 3px;
 }
 
 .modalBody::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+  background: #94a3b8;
   border-radius: 3px;
 }
 
 .modalBody::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #764ba2 0%, #667eea 100%);
+  background: #64748b;
+}
+
+.modalOverlay.darkMode .modalBody::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.modalOverlay.darkMode .modalBody::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.modalOverlay.darkMode .modalBody::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .modalFooter {
   display: flex;
   gap: 12px;
-  padding: 20px 24px;
-  border-top: 1px solid var(--light-border);
-  background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(240, 249, 255, 0.6) 100%);
-  backdrop-filter: blur(8px);
+  padding: 16px 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .modalOverlay.darkMode .modalFooter {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(51, 65, 85, 0.5) 100%);
-  border-top-color: var(--dark-border);
-  backdrop-filter: blur(8px);
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Form Styles */
 .formGroup {
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .formGroup label {
   display: block;
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 8px;
-  color: var(--light-text);
-  font-size: 14px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #64748b;
+  font-size: 13px;
 }
 
 .modalOverlay.darkMode .formGroup label {
-  background: linear-gradient(135deg, #60a5fa 0%, #06b6d4 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #94a3b8;
 }
 
 .formInput {
   width: 100%;
   padding: 12px 14px;
-  border: 1.5px solid var(--light-border);
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--light-surface) 0%, #f0f9ff 100%);
-  color: var(--light-text);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1e293b;
   font-size: 14px;
   font-family: inherit;
-  transition: all 0.3s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   outline: none;
 }
 
 .formInput:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .modalOverlay.darkMode .formInput {
-  background: linear-gradient(135deg, var(--dark-surface) 0%, var(--dark-surface-alt) 100%);
-  color: var(--dark-text);
-  border-color: var(--dark-border);
+  background: #334155;
+  color: #f1f5f9;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .modalOverlay.darkMode .formInput:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 /* Buttons */
 .primaryButton {
   flex: 1;
-  padding: 14px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 12px 20px;
+  background: #6366f1;
   color: white;
   border: none;
-  border-radius: 14px;
+  border-radius: 8px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 14px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-  position: relative;
-  overflow: hidden;
-}
-
-.primaryButton::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.2) 50%, transparent 70%);
-  background-size: 200% 200%;
-  animation: shimmer 2s linear infinite;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.primaryButton:hover:not(:disabled)::before {
-  opacity: 1;
+  transition: background 0.15s ease;
 }
 
 .primaryButton:hover:not(:disabled) {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+  background: #4f46e5;
 }
 
 .primaryButton:active:not(:disabled) {
-  transform: translateY(-1px) scale(1.01);
+  background: #4338ca;
 }
 
 .primaryButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 .secondaryButton {
   flex: 1;
-  padding: 11px 16px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%);
-  color: var(--primary);
-  border: 1.5px solid rgba(59, 130, 246, 0.3);
-  border-radius: 10px;
+  padding: 12px 20px;
+  background: transparent;
+  color: #64748b;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 14px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .secondaryButton:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(6, 182, 212, 0.08) 100%);
-  border-color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
 .modalOverlay.darkMode .secondaryButton {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.12) 0%, rgba(6, 182, 212, 0.06) 100%);
-  border-color: rgba(96, 165, 250, 0.3);
-  color: #60a5fa;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
 }
 
 .modalOverlay.darkMode .secondaryButton:hover {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.2) 0%, rgba(6, 182, 212, 0.1) 100%);
-  border-color: #60a5fa;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Profile Content */
@@ -1450,7 +1364,7 @@
 
 .menuItem:hover {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(6, 182, 212, 0.04) 100%);
-  color: var(--primary);
+  color: #ffffff;
   padding-left: 18px;
 }
 
@@ -1733,49 +1647,46 @@
 
 /* Input Area */
 .messageInput {
-  padding: 16px 24px 24px;
+  padding: 12px 16px;
   border-top: 1px solid var(--light-border);
-  background: linear-gradient(135deg, var(--light-surface) 0%, rgba(240, 249, 255, 0.8) 100%);
-  backdrop-filter: blur(8px);
+  background: var(--light-surface);
   display: flex;
-  gap: 12px;
-  align-items: flex-end;
+  gap: 10px;
+  align-items: center;
 }
 
 .dashboard.darkMode .messageInput {
-  background: linear-gradient(135deg, var(--dark-surface) 0%, rgba(51, 65, 85, 0.5) 100%);
+  background: var(--dark-surface);
   border-top-color: var(--dark-border);
 }
 
 .inputField {
   flex: 1;
-  padding: 12px 16px;
-  border: 1.5px solid var(--light-border);
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--light-surface) 0%, #f0f9ff 100%);
+  padding: 10px 14px;
+  border: 1px solid var(--light-border);
+  border-radius: 10px;
+  background: var(--light-background);
   color: var(--light-text);
   font-size: 14px;
   font-family: inherit;
   resize: none;
   max-height: 100px;
   outline: none;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.15s ease;
 }
 
 .inputField:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), 0 4px 12px rgba(59, 130, 246, 0.15);
+  border-color: #6366f1;
 }
 
 .dashboard.darkMode .inputField {
-  background: linear-gradient(135deg, var(--dark-surface) 0%, var(--dark-surface-alt) 100%);
+  background: var(--dark-background);
   color: var(--dark-text);
   border-color: var(--dark-border);
 }
 
 .dashboard.darkMode .inputField:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(59, 130, 246, 0.2);
+  border-color: #6366f1;
 }
 
 .inputField::placeholder {
@@ -1788,27 +1699,32 @@
 
 .emojiButton,
 .attachButton {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  color: var(--primary);
+  background: transparent;
+  border: 1px solid var(--light-border);
+  color: var(--light-text-secondary);
   padding: 8px;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  transition: all 0.3s ease;
+  font-size: 16px;
+  transition: background 0.15s ease, border-color 0.15s ease;
   flex-shrink: 0;
+}
+
+.dashboard.darkMode .emojiButton,
+.dashboard.darkMode .attachButton {
+  border-color: var(--dark-border);
+  color: var(--dark-text-secondary);
 }
 
 .emojiButton:hover,
 .attachButton:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(6, 182, 212, 0.08) 100%);
-  border-color: var(--primary);
-  transform: translateY(-2px);
+  background: rgba(99, 102, 241, 0.1);
+  border-color: #6366f1;
 }
 
 /* ==================== RIGHT PANEL & CHAT INFO ==================== */
