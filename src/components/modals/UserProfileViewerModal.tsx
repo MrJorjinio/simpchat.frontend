@@ -304,38 +304,36 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Bio */}
-                  {user.bio && (
-                    <div
+                  {/* Bio - Always show section */}
+                  <div
+                    style={{
+                      padding: '14px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      borderRadius: '12px',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    <h4
                       style={{
-                        padding: '14px',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        borderRadius: '12px',
-                        marginBottom: '16px',
+                        margin: '0 0 8px 0',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#94a3b8',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
                       }}
                     >
-                      <h4
-                        style={{
-                          margin: '0 0 8px 0',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#94a3b8',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                        }}
-                      >
-                        About
-                      </h4>
-                      <p style={{
-                        margin: 0,
-                        fontSize: '14px',
-                        color: '#cbd5e1',
-                        lineHeight: '1.5'
-                      }}>
-                        {user.bio}
-                      </p>
-                    </div>
-                  )}
+                      About
+                    </h4>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '14px',
+                      color: '#cbd5e1',
+                      lineHeight: '1.5'
+                    }}>
+                      {user.bio || <span style={{ color: '#64748b', fontStyle: 'italic' }}>No bio set</span>}
+                    </p>
+                  </div>
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
