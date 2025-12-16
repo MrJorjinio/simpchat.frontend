@@ -62,6 +62,15 @@ export const normalizeChatType = (type: any): 'dm' | 'group' | 'channel' => {
 export const normalizeChat = (chat: any): Chat => {
   if (!chat) return {} as Chat;
 
+  // Debug: log raw chat data to see what backend returns
+  console.log('[Normalizer] Raw chat data:', {
+    id: chat.id,
+    name: chat.name,
+    participantsCount: chat.participantsCount,
+    ParticipantsCount: chat.ParticipantsCount,
+    membersLength: chat.members?.length,
+  });
+
   // Normalize privacy: backend enum 0=Public, 1=Private
   let privacy: 'public' | 'private' | undefined = undefined;
   if (chat.privacy !== null && chat.privacy !== undefined) {
@@ -72,7 +81,7 @@ export const normalizeChat = (chat: any): Chat => {
     }
   }
 
-  return {
+  const result: Chat = {
     id: chat.id,
     name: chat.name || 'Unknown',
     type: normalizeChatType(chat.type),
@@ -110,7 +119,6 @@ export const normalizeChat = (chat: any): Chat => {
     } as any : undefined,
     // Map notificationsCount or unreadCount - backend uses "notificationsCount"
     unreadCount: chat.unreadCount !== undefined ? chat.unreadCount : (chat.notificationsCount || 0),
-    isOnline: chat.isOnline !== undefined ? chat.isOnline : false,
     createdAt: chat.created || chat.createdAt || new Date().toISOString(),
     updatedAt: chat.userLastMessage || chat.updatedAt || chat.createdAt || new Date().toISOString(),
     // Normalize messages - fix MinIO URLs for file attachments and sender avatars
@@ -119,10 +127,21 @@ export const normalizeChat = (chat: any): Chat => {
       fileUrl: fixMinioUrl(msg.fileUrl),
       senderAvatarUrl: fixMinioUrl(msg.senderAvatarUrl),
     })) as BackendMessage[] : undefined,
-    participantsCount: chat.participantsCount,
-    participantsOnline: chat.participantsOnline,
-    notificationsCount: chat.notificationsCount,
+    // Support both camelCase and PascalCase from backend
+    participantsCount: chat.participantsCount ?? chat.ParticipantsCount,
+    participantsOnline: chat.participantsOnline ?? chat.ParticipantsOnline,
+    notificationsCount: chat.notificationsCount ?? chat.NotificationsCount,
+    isOnline: chat.isOnline ?? chat.IsOnline ?? false,
   };
+
+  // Debug: log normalized result
+  console.log('[Normalizer] Normalized chat result:', {
+    id: result.id,
+    name: result.name,
+    participantsCount: result.participantsCount,
+  });
+
+  return result;
 };
 
 /**
@@ -139,6 +158,11 @@ export const normalizeUser = (user: any): User => {
   if (!user) return {} as User;
 
   console.log('[Normalizer] Normalizing user:', user);
+  console.log('[Normalizer] User description fields:', {
+    description: user.description,
+    Description: user.Description,
+    bio: user.bio,
+  });
 
   // Handle userId vs id vs entityId discrepancy
   // GET /api/users/me and GET /api/users/{id} return userId (NOT id!)
@@ -160,7 +184,7 @@ export const normalizeUser = (user: any): User => {
     email: user.email || '', // IMPORTANT: GET /users/me does NOT return email field
     // Support both camelCase (avatarUrl) and PascalCase (AvatarUrl) from backend
     avatar: fixMinioUrl(user.avatarUrl || user.AvatarUrl || user.avatar || user.profileImage),
-    bio: user.description || user.bio || '', // Backend uses "description"
+    bio: user.description || user.Description || user.bio || '', // Backend uses "description"
     onlineStatus,
     lastSeen: user.lastSeen || new Date().toISOString(),
     addMePolicy: (user.addMePolicy || 'everyone') as 'everyone' | 'chatted' | 'nobody', // Not implemented in backend

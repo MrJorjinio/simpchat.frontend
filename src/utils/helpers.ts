@@ -83,13 +83,15 @@ export const cn = (...classes: (string | undefined | false)[]): string => {
  * Examples: "just now", "5 minutes ago", "2 hours ago", "Yesterday at 3:45 PM", "Monday at 10:30 AM"
  */
 /**
- * Fixes MinIO URLs by replacing internal Docker hostname with localhost
+ * Fixes MinIO URLs by replacing internal Docker hostname with accessible IP
  * This handles URLs stored in database with the internal hostname
  */
 export const fixMinioUrl = (url: string | undefined | null): string | undefined => {
   if (!url) return undefined;
-  // Replace internal Docker hostname with localhost for browser access
-  return url.replace('simpchat.filestorage:9000', 'localhost:9000');
+  // Replace internal Docker hostname with network IP for browser access
+  return url
+    .replace('simpchat.filestorage:9000', '192.168.100.25:9000')
+    .replace('localhost:9000', '192.168.100.25:9000');
 };
 
 export const formatLastSeen = (lastSeenISO: string): string => {

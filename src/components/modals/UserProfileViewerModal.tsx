@@ -38,8 +38,11 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     setError(null);
     try {
       const profile = await userService.getUserProfile(userId);
+      console.log('[UserProfileViewer] Loaded profile:', profile);
+      console.log('[UserProfileViewer] Bio field:', profile.bio);
       setUser(profile);
     } catch (err: any) {
+      console.error('[UserProfileViewer] Error loading profile:', err);
       setError(err.response?.data?.message || 'Failed to load user profile');
     } finally {
       setIsLoading(false);

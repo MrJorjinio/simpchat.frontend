@@ -736,13 +736,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {currentChat.type === 'dm' ? (
                 (() => {
                   const otherUserId = getOtherUserId(currentChat);
-                  if (!otherUserId) return <span>Offline</span>;
-                  const online = isUserOnline(otherUserId);
-                  const lastSeen = getUserLastSeen(otherUserId);
+                  // If we have the other user's ID, check their presence state
+                  if (otherUserId) {
+                    const online = isUserOnline(otherUserId);
+                    const lastSeen = getUserLastSeen(otherUserId);
+                    return (
+                      <OnlineStatusIndicator
+                        isOnline={online}
+                        lastSeen={lastSeen}
+                        size="sm"
+                        showLabel={true}
+                        position="standalone"
+                      />
+                    );
+                  }
+                  // Fallback: use the chat's isOnline field (from backend UserChatResponseDto)
                   return (
                     <OnlineStatusIndicator
-                      isOnline={online}
-                      lastSeen={lastSeen}
+                      isOnline={currentChat.isOnline || false}
                       size="sm"
                       showLabel={true}
                       position="standalone"
@@ -752,15 +763,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
               ) : (
                 (() => {
                   const onlineCount = getOnlineMembersCount(currentChat.id);
-                  const totalMembers = currentChat.members?.length || 0;
+                  // Use participantsCount from backend if members array is empty
+                  const totalMembers = currentChat.members?.length || currentChat.participantsCount || 0;
+                  console.log('[ChatView] Member count debug:', {
+                    chatId: currentChat.id,
+                    chatName: currentChat.name,
+                    membersLength: currentChat.members?.length,
+                    participantsCount: currentChat.participantsCount,
+                    totalMembers,
+                    fullChat: currentChat
+                  });
                   return (
                     <span>
-                      {totalMembers} member{totalMembers !== 1 ? 's' : ''}
-                      {onlineCount > 0 && (
+                      {totalMembers > 0 ? (
                         <>
-                          <span style={{ margin: '0 4px', color: 'var(--text-muted)' }}>•</span>
-                          <span style={{ color: '#51cf66', fontWeight: 600 }}>{onlineCount} online</span>
+                          {totalMembers} member{totalMembers !== 1 ? 's' : ''}
+                          {onlineCount > 0 && (
+                            <>
+                              <span style={{ margin: '0 4px', color: 'var(--text-muted)' }}>•</span>
+                              <span style={{ color: '#51cf66', fontWeight: 600 }}>{onlineCount} online</span>
+                            </>
+                          )}
                         </>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Members</span>
                       )}
                     </span>
                   );

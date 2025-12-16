@@ -6,9 +6,14 @@ import { fixMinioUrl } from '../utils/helpers';
 export const chatService = {
   getAllChats: async () => {
     const response = await api.get<any>('/chats/me');
+    console.log('[ChatService] Raw API response:', response.data);
     const rawChats = response.data?.data || response.data;
+    console.log('[ChatService] Extracted rawChats:', rawChats);
+    console.log('[ChatService] First chat participantsCount:', rawChats?.[0]?.participantsCount);
     // Normalize to match frontend expectations
-    return normalizeChats(rawChats);
+    const normalized = normalizeChats(rawChats);
+    console.log('[ChatService] After normalization, first chat participantsCount:', normalized?.[0]?.participantsCount);
+    return normalized;
   },
 
   getChat: async (chatId: string) => {
@@ -132,6 +137,11 @@ export const chatService = {
       params: { chatId }
     });
     return response.data?.data || response.data;
+  },
+
+  getBannedUsers: async (chatId: string) => {
+    const response = await api.get<any>(`/chats/${chatId}/banned-users`);
+    return response.data?.data || response.data || [];
   },
 
   addMemberToGroup: async (chatId: string, addingUserId: string) => {

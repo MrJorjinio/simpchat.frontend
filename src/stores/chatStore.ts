@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { Chat, BackendMessage } from '../types/api.types';
 import { chatService } from '../services/chat.service';
 import { messageService } from '../services/message.service';
-import { normalizeChats } from '../utils/normalizers';
 import { extractErrorMessage } from '../utils/errorHandler';
 
 interface TypingUser {
@@ -65,15 +64,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadChats: async () => {
     set({ isLoadingChats: true, error: null });
     try {
-      const rawChats = await chatService.getAllChats();
-      console.log('[ChatStore] Raw chats from API:', rawChats);
+      // chatService.getAllChats() already normalizes the chats
+      const chats = await chatService.getAllChats();
+      console.log('[ChatStore] Chats from API (already normalized):', chats);
+      console.log('[ChatStore] Sample chat participantsCount:', chats[0]?.participantsCount, chats[0]?.name);
 
-      // Normalize chats to match frontend expectations
-      const normalizedChats = normalizeChats(rawChats);
-      console.log('[ChatStore] Normalized chats:', normalizedChats);
-      console.log('[ChatStore] Chat types after normalization:', normalizedChats.map((c) => ({ id: c.id, name: c.name, type: c.type })));
-
-      set({ chats: normalizedChats, isLoadingChats: false });
+      set({ chats, isLoadingChats: false });
     } catch (error: any) {
       const errorMessage = extractErrorMessage(error, 'Failed to load chats');
       console.error('[ChatStore] Error loading chats:', error);
@@ -82,6 +78,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   setCurrentChat: (chat: Chat | null) => {
+    console.log('[ChatStore] setCurrentChat called with:', {
+      chatId: chat?.id,
+      chatName: chat?.name,
+      participantsCount: chat?.participantsCount,
+      membersLength: chat?.members?.length,
+    });
     set({ currentChat: chat });
   },
 

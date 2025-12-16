@@ -27,7 +27,10 @@ export const userService = {
 
   getUserProfile: async (userId: string) => {
     const response = await api.get<any>(`/users/${userId}`);
+    console.log('[UserService] getUserProfile raw response:', response.data);
     const rawUser = response.data?.data || response.data;
+    console.log('[UserService] getUserProfile rawUser:', rawUser);
+    console.log('[UserService] getUserProfile description:', rawUser?.description, rawUser?.Description);
     return normalizeUser(rawUser);
   },
 

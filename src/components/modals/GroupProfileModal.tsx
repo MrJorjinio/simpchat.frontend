@@ -46,6 +46,13 @@ interface ChatProfile {
   privacy?: 'public' | 'private';
 }
 
+interface BannedUser {
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  bannedAt: string;
+}
+
 export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   isOpen,
   onClose,
@@ -71,6 +78,9 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   const [isJoining, setIsJoining] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
   const [presenceLoaded, setPresenceLoaded] = useState(false);
+  const [showBannedUsers, setShowBannedUsers] = useState(false);
+  const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
+  const [isLoadingBannedUsers, setIsLoadingBannedUsers] = useState(false);
 
   const { isUserOnline, getUserLastSeen, loadChats, setInitialPresenceStates } = useChatStore();
 
@@ -138,6 +148,50 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
       setIsJoining(false);
     }
   };
+
+  const loadBannedUsers = async () => {
+    if (!chat?.id || !isAdmin) return;
+
+    setIsLoadingBannedUsers(true);
+    try {
+      const banned = await chatService.getBannedUsers(chat.id);
+      setBannedUsers(banned);
+    } catch (error) {
+      console.error('[GroupProfileModal] Failed to load banned users:', error);
+      toast.error(extractErrorMessage(error, 'Failed to load banned users'));
+    } finally {
+      setIsLoadingBannedUsers(false);
+    }
+  };
+
+  const handleUnban = async (userId: string, username: string) => {
+    const confirmed = await confirm({
+      title: 'Unban User',
+      message: `Are you sure you want to unban ${username}? They will be able to rejoin this ${chat.type === 'channel' ? 'channel' : 'group'}.`,
+      confirmText: 'Unban',
+      cancelText: 'Cancel',
+      variant: 'info',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await chatService.unbanUser(chat.id, userId);
+      toast.success(`${username} has been unbanned`);
+      // Reload banned users list
+      await loadBannedUsers();
+    } catch (error) {
+      console.error('[GroupProfileModal] Failed to unban user:', error);
+      toast.error(extractErrorMessage(error, 'Failed to unban user'));
+    }
+  };
+
+  // Load banned users when showing the banned users section
+  useEffect(() => {
+    if (showBannedUsers && isAdmin) {
+      loadBannedUsers();
+    }
+  }, [showBannedUsers, isAdmin]);
 
   // Filter members based on search query
   useEffect(() => {
@@ -709,6 +763,40 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                 </div>
               )}
 
+              {/* Banned Users Button (for admins) */}
+              {isAdmin && (
+                <div style={{ marginBottom: '24px' }}>
+                  <button
+                    onClick={() => setShowBannedUsers(true)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      backgroundColor: 'var(--background)',
+                      color: 'var(--text)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--border)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--background)';
+                    }}
+                  >
+                    <Ban size={16} />
+                    View Banned Users
+                  </button>
+                </div>
+              )}
+
               {/* Members List */}
               <div>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
@@ -995,6 +1083,150 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                     }}
                   >
                     Add
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* Banned Users Modal */}
+    <AnimatePresence>
+      {showBannedUsers && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1002,
+          }}
+          onClick={() => setShowBannedUsers(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--card)',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '400px',
+              maxHeight: '500px',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+            }}>
+              <h3 style={{ margin: 0, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Ban size={20} color="#ef4444" />
+                Banned Users
+              </h3>
+              <button
+                onClick={() => setShowBannedUsers(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {isLoadingBannedUsers && (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                Loading banned users...
+              </div>
+            )}
+
+            {!isLoadingBannedUsers && bannedUsers.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+                No banned users
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {bannedUsers.map((user) => (
+                <div
+                  key={user.userId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px',
+                    backgroundColor: 'var(--background)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {user.avatarUrl ? (
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.username}
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          backgroundColor: '#ef4444',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {user.username?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontWeight: 500, color: 'var(--text)' }}>{user.username}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        Banned {new Date(user.bannedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleUnban(user.userId, user.username)}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#51cf66',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Unban
                   </button>
                 </div>
               ))}

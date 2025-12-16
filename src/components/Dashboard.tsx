@@ -1489,35 +1489,95 @@ const Dashboard: React.FC = () => {
       console.log('[Dashboard] Looking for existing DM with user:', userId);
       const allChats = chatStore.chats;
 
+      // First, try to find DM by checking members (if populated)
       let dmChat = allChats.find((c: Chat) => {
-        if (c.type !== 'dm' || !c.members || c.members.length === 0) return false;
-        return c.members.some((m: any) =>
-          m.userId === userId ||
-          m.id === userId ||
-          m.user?.id === userId ||
-          m.user?.userId === userId
-        );
+        if (c.type !== 'dm') return false;
+        if (c.members && c.members.length > 0) {
+          return c.members.some((m: any) =>
+            m.userId === userId ||
+            m.id === userId ||
+            m.user?.id === userId ||
+            m.user?.userId === userId
+          );
+        }
+        return false;
       });
 
-      // If DM doesn't exist, create temporary blank chat so it shows immediately
+      // If not found by members, check DM chats with empty members by fetching full profile
       if (!dmChat) {
-        console.log('[Dashboard] No existing DM found, creating temporary blank chat for user:', userId);
-        dmChat = {
-          id: `temp_dm_${userId}`,
-          name: selectedUser?.username || 'User',
-          type: 'dm',
-          avatar: selectedUser?.avatar,
-          description: '',
-          privacy: 'private',
-          members: [],
-          unreadCount: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        } as Chat;
+        const dmChatsWithoutMembers = allChats.filter((c: Chat) =>
+          c.type === 'dm' && (!c.members || c.members.length === 0)
+        );
+
+        console.log('[Dashboard] Checking', dmChatsWithoutMembers.length, 'DM chats without members');
+
+        for (const chat of dmChatsWithoutMembers) {
+          try {
+            // Use getChatProfile instead of getChat - it returns members
+            const fullChat = await chatService.getChatProfile(chat.id);
+            console.log('[Dashboard] Fetched full DM profile:', fullChat.id, 'members:', fullChat.members?.length);
+
+            if (fullChat.members && fullChat.members.length > 0) {
+              const hasMatch = fullChat.members.some((m: any) =>
+                m.userId === userId ||
+                m.id === userId ||
+                m.user?.id === userId ||
+                m.user?.userId === userId
+              );
+
+              if (hasMatch) {
+                console.log('[Dashboard] Found existing DM by fetching profile:', fullChat.id);
+                dmChat = fullChat;
+                break;
+              }
+            }
+          } catch (error) {
+            console.error('[Dashboard] Error fetching DM profile:', error);
+          }
+        }
       }
 
-      console.log('[Dashboard] Setting current chat to:', dmChat.id);
-      chatStore.setCurrentChat(dmChat);
+      // If DM exists, open it
+      if (dmChat) {
+        console.log('[Dashboard] Opening existing DM:', dmChat.id);
+        chatStore.setCurrentChat(dmChat);
+        return;
+      }
+
+      // No existing DM - create temporary blank chat
+      console.log('[Dashboard] No existing DM found, creating temporary blank chat for user:', userId);
+
+      // Get user info - either from selectedUser state or fetch it
+      let userName = selectedUser?.username || 'User';
+      let userAvatar = selectedUser?.avatar;
+
+      if (!selectedUser) {
+        try {
+          const userSvc = await import('../services/user.service').then((m) => m.userService);
+          const userProfile = await userSvc.getUserProfile(userId);
+          userName = userProfile.username || 'User';
+          userAvatar = userProfile.avatar;
+          console.log('[Dashboard] Fetched user profile for blank chat:', userName);
+        } catch (error) {
+          console.error('[Dashboard] Failed to fetch user profile:', error);
+        }
+      }
+
+      const blankChat = {
+        id: `temp_dm_${userId}`,
+        name: userName,
+        type: 'dm',
+        avatar: userAvatar,
+        description: '',
+        privacy: 'private',
+        members: [],
+        unreadCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as Chat;
+
+      console.log('[Dashboard] Setting current chat to blank:', blankChat.id);
+      chatStore.setCurrentChat(blankChat);
 
       // If message is provided, send it with receiverId to trigger backend auto-creation
       if (message && message.trim()) {
@@ -1740,10 +1800,7 @@ const Dashboard: React.FC = () => {
             setViewingUserId(null);
           }}
           userId={viewingUserId}
-          onSendMessage={(userId) => {
-            // TODO: Implement send message functionality
-            console.log('Send message to user:', userId);
-          }}
+          onSendMessage={handleSendMessage}
           onBlockUser={handleBlockUser}
         />
       )}
