@@ -60,6 +60,7 @@ export interface Chat {
 // Backend message format from GET /api/chats/{chatId}
 export interface BackendMessage {
   messageId: string;
+  chatId?: string; // Present in SignalR messages
   content: string;
   fileUrl?: string;
   senderId: string;

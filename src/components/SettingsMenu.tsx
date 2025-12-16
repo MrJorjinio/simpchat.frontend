@@ -1,7 +1,5 @@
 import React from 'react';
 import {
-  Plus,
-  Megaphone,
   Smile,
   User,
   Bell,
@@ -12,7 +10,6 @@ import {
   X,
   Users,
   Radio,
-  Palette
 } from 'lucide-react';
 import styles from './SettingsMenu.module.css';
 

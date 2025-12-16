@@ -5,7 +5,7 @@ import { useThemeStore } from '../stores/themeStore';
 import { chatService } from '../services/chat.service';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorHandler';
-import type { Chat, BackendMessage, User } from '../types/api.types';
+import type { Chat, User } from '../types/api.types';
 import styles from './Dashboard.module.css';
 import AdminPanel from './AdminPanel';
 import { useSignalR } from '../hooks/useSignalR';
@@ -13,10 +13,9 @@ import { FileDropzone } from './common/FileDropzone';
 import { GroupProfileModal } from './modals/GroupProfileModal';
 import { UserProfileViewerModal } from './modals/UserProfileViewerModal';
 import { Sidebar } from './Sidebar';
-import { Avatar } from './common/Avatar';
 import { ChatView } from './ChatView';
 import { SettingsMenu } from './SettingsMenu';
-import { getInitials } from '../utils/helpers';
+import { getInitials, fixMinioUrl } from '../utils/helpers';
 import { toast } from './common/Toast';
 import { confirm } from './common/ConfirmModal';
 
@@ -770,10 +769,9 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const { chats, currentChat, isLoadingChats } = useChatStore();
+  const { chats, currentChat, isLoadingChats, messages, setMessages } = useChatStore();
   const { theme, toggleTheme } = useThemeStore();
   const signalR = useSignalR();
-  const [messages, setMessages] = useState<BackendMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
@@ -789,9 +787,8 @@ const Dashboard: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showUserProfileViewer, setShowUserProfileViewer] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
-  const [isLoadingUserProfile, setIsLoadingUserProfile] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
+  const [_selectedSearchResult, setSelectedSearchResult] = useState<any>(null);
+  const [_isLoadingUserProfile, setIsLoadingUserProfile] = useState(false);
   const [showGroupProfileModal, setShowGroupProfileModal] = useState(false);
   const [showUserViewerModal, setShowUserViewerModal] = useState(false);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
@@ -895,7 +892,17 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSendChatMessage = async (content: string, file?: File) => {
-    if (!currentChat || !currentChat.id || currentChat.id === 'search' || !user) return;
+    console.log('[Dashboard] handleSendChatMessage called', {
+      content,
+      file: file ? { name: file.name, size: file.size, type: file.type } : null,
+      currentChatId: currentChat?.id,
+      userId: user?.id
+    });
+
+    if (!currentChat || !currentChat.id || currentChat.id === 'search' || !user) {
+      console.log('[Dashboard] Early return - missing chat or user');
+      return;
+    }
 
     try {
       // If there's a file attachment, use REST API (SignalR doesn't handle files)
@@ -1091,6 +1098,24 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleKickMember = async (userId: string) => {
+    if (!currentChat) return;
+    try {
+      if (currentChat.type === 'group') {
+        await chatService.removeMemberFromGroup(currentChat.id, userId);
+      } else if (currentChat.type === 'channel') {
+        await chatService.removeMemberFromChannel(currentChat.id, userId);
+      }
+      toast.success('Member removed successfully');
+      // Reload chat profile
+      const updated = await chatService.getChatProfile(currentChat.id);
+      useChatStore.getState().setCurrentChat(updated);
+    } catch (error) {
+      console.error('Failed to remove member:', error);
+      toast.error(extractErrorMessage(error, 'Failed to remove member'));
+    }
+  };
+
   const handleUpdatePrivacy = async (privacy: 'public' | 'private') => {
     if (!currentChat) return;
     try {
@@ -1259,7 +1284,7 @@ const Dashboard: React.FC = () => {
                 id: userId,  // Use entityId from search result
                 name: displayName,
                 type: 'user',
-                avatar: u.avatarUrl || u.avatar || u.profileImage,
+                avatar: fixMinioUrl(u.avatarUrl || u.avatar || u.profileImage),
               });
             });
           }
@@ -1341,7 +1366,7 @@ const Dashboard: React.FC = () => {
 
               // Map field names from API response (handle multiple possible field names)
               const name = String(c.displayName || c.name || c.username || c.title || 'Unknown').trim();
-              const avatar = c.avatarUrl || c.avatar || c.profileImage || '';
+              const avatar = fixMinioUrl(c.avatarUrl || c.avatar || c.profileImage) || '';
 
               const mapped: { id: string; name: string; type: 'user' | 'group' | 'channel'; avatar?: string } = {
                 id: String(c.entityId || c.id || 'unknown'),
@@ -1533,37 +1558,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleJoinGroup = async (chatId: string) => {
-    if (!user || !selectedSearchResult) return;
-    setIsJoining(true);
-    try {
-      // Determine chat type from selectedSearchResult
-      const chatType = selectedSearchResult.type as 'group' | 'channel';
-      console.log('[Dashboard] Joining', chatType + ':', chatId);
-      await chatService.joinChat(chatId, chatType);
-
-      // Reload chats
-      const chatStore = useChatStore.getState();
-      await chatStore.loadChats();
-
-      // Find and select the joined group/channel
-      const updatedChats = await chatService.getAllChats();
-      const joinedChat = updatedChats.find((c: Chat) => c.id === chatId);
-      if (joinedChat) {
-        chatStore.setCurrentChat(joinedChat);
-        console.log('[Dashboard] Joined and selected group/channel:', joinedChat.id);
-      }
-
-      setShowUserProfileViewer(false);
-      setSelectedSearchResult(null);
-    } catch (error) {
-      console.error('[Dashboard] Failed to join group/channel:', error);
-      toast.error(extractErrorMessage(error, 'Failed to join group/channel'));
-    } finally {
-      setIsJoining(false);
-    }
-  };
-
   return (
     <div className={`${styles.dashboard} ${isDarkMode ? styles.darkMode : ''}`}>
       <Sidebar
@@ -1720,6 +1714,7 @@ const Dashboard: React.FC = () => {
           }}
           onLeaveGroup={handleLeaveChat}
           onDeleteGroup={handleDeleteChat}
+          onKickMember={handleKickMember}
           onBanMember={handleBanMember}
           onUnbanMember={handleUnbanMember}
           onUpdatePrivacy={handleUpdatePrivacy}

@@ -46,12 +46,23 @@ export const messageService = {
    */
   sendMessage: async (formData: FormData) => {
     try {
+      console.log('[MessageService] sendMessage called');
+      console.log('[MessageService] FormData entries:');
+      for (const [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+        } else {
+          console.log(`  ${key}: ${value}`);
+        }
+      }
+
       const response = await api.post<any>('/messages', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      console.log('[MessageService] Response:', response.data);
       return response.data?.data || response.data;
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('[MessageService] Error sending message:', error);
       throw error;
     }
   },

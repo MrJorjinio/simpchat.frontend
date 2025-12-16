@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Menu } from 'lucide-react';
 import type { Chat, User } from '../types/api.types';
 import { Avatar } from './common/Avatar';

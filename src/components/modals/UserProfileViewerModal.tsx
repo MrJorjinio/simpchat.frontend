@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageCircle, UserX, Sparkles } from 'lucide-react';
+import { X, MessageCircle, UserX } from 'lucide-react';
 import type { User } from '../../types/api.types';
 import { userService } from '../../services/user.service';
 import { useChatStore } from '../../stores/chatStore';

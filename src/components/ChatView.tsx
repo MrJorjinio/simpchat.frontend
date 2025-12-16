@@ -6,7 +6,7 @@ import { chatService } from '../services/chat.service';
 import type { Chat, BackendMessage, User, ChatType, ChatMember } from '../types/api.types';
 import { Avatar } from './common/Avatar';
 import { OnlineStatusIndicator } from './common/OnlineStatusIndicator';
-import { getInitials, formatTime } from '../utils/helpers';
+import { getInitials, formatTime, fixMinioUrl } from '../utils/helpers';
 import { extractErrorMessage } from '../utils/errorHandler';
 import { toast } from './common/Toast';
 import { confirm } from './common/ConfirmModal';
@@ -527,12 +527,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, [messages, currentChat]);
 
   const handleSendMessage = async () => {
-    if ((!messageText.trim() && !selectedFile) || !currentChat) return;
+    console.log('[ChatView] handleSendMessage called', {
+      messageText,
+      selectedFile: selectedFile ? { name: selectedFile.name, size: selectedFile.size, type: selectedFile.type } : null,
+      currentChat: currentChat?.id
+    });
+
+    if ((!messageText.trim() && !selectedFile) || !currentChat) {
+      console.log('[ChatView] Early return - no content or no chat');
+      return;
+    }
 
     setSending(true);
     try {
       // Pass both message text and file to onSendMessage
+      console.log('[ChatView] Calling onSendMessage with file:', selectedFile ? selectedFile.name : 'none');
       await onSendMessage(messageText, selectedFile || undefined);
+      console.log('[ChatView] onSendMessage completed');
       setMessageText('');
       setSelectedFile(null);
       setReplyToMessage(null);
@@ -541,7 +552,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         fileInputRef.current.value = '';
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
+      console.error('[ChatView] Failed to send message:', error);
     } finally {
       setSending(false);
     }
@@ -912,11 +923,84 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   </div>
                 )}
                 <div className={styles.messageContent}>{msg.content}</div>
-                {msg.fileUrl && (
-                  <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className={styles.attachment}>
-                    📎 File
-                  </a>
-                )}
+                {msg.fileUrl && (() => {
+                  const fileUrl = fixMinioUrl(msg.fileUrl) || msg.fileUrl;
+                  return (
+                    <div style={{ marginTop: '8px' }}>
+                      {/* Image preview */}
+                      {/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(fileUrl) ? (
+                        <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={fileUrl}
+                            alt="Attachment"
+                            style={{
+                              maxWidth: '300px',
+                              maxHeight: '200px',
+                              borderRadius: '8px',
+                              objectFit: 'cover',
+                              cursor: 'pointer',
+                            }}
+                            onError={(e) => {
+                              // If image fails to load, show fallback link
+                              e.currentTarget.style.display = 'none';
+                              const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                          <div style={{ display: 'none', alignItems: 'center', gap: '6px', padding: '8px 12px', background: 'var(--background)', borderRadius: '8px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                            📷 Image (click to view)
+                          </div>
+                        </a>
+                      ) : /\.(mp4|webm|ogg|mov)$/i.test(fileUrl) ? (
+                        /* Video preview */
+                        <video
+                          src={fileUrl}
+                          controls
+                          style={{
+                            maxWidth: '300px',
+                            maxHeight: '200px',
+                            borderRadius: '8px',
+                          }}
+                        />
+                      ) : /\.(mp3|wav|ogg|m4a)$/i.test(fileUrl) ? (
+                        /* Audio preview */
+                        <audio
+                          src={fileUrl}
+                          controls
+                          style={{ maxWidth: '300px' }}
+                        />
+                      ) : (
+                        /* Other files - show download link */
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 14px',
+                            background: 'var(--background)',
+                            borderRadius: '8px',
+                            color: 'var(--text)',
+                            textDecoration: 'none',
+                            fontSize: '13px',
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'var(--background)'}
+                        >
+                          <span style={{ fontSize: '18px' }}>
+                            {/\.pdf$/i.test(fileUrl) ? '📄' : /\.(doc|docx)$/i.test(fileUrl) ? '📝' : /\.(xls|xlsx)$/i.test(fileUrl) ? '📊' : /\.(zip|rar|7z)$/i.test(fileUrl) ? '📦' : '📎'}
+                          </span>
+                          <span>
+                            {fileUrl.split('/').pop()?.substring(37) || 'Download file'}
+                          </span>
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
                 {msg.messageReactions && msg.messageReactions.length > 0 && (
                   <div className={styles.reactionsContainer} style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
                     {msg.messageReactions.map((reaction, idx) => (
@@ -1223,37 +1307,95 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*,application/pdf,.doc,.docx"
+          accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
           style={{ display: 'none' }}
           onChange={(e) => {
             const file = e.target.files?.[0];
+            console.log('[ChatView] File selected:', file ? { name: file.name, size: file.size, type: file.type } : null);
             if (file) {
               setSelectedFile(file);
             }
           }}
         />
         <button
+          type="button"
           className={styles.attachButton}
           title="Attach file"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            console.log('[ChatView] Attach button clicked, fileInputRef:', fileInputRef.current);
+            fileInputRef.current?.click();
+          }}
         >
           📎
         </button>
         {selectedFile && (
-          <div className={styles.filePreview} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', background: '#f0f0f0', borderRadius: '4px', fontSize: '12px' }}>
-            <span>{selectedFile.name}</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 12px',
+              background: 'var(--background)',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              maxWidth: '200px',
+            }}
+          >
+            {/* Show image preview for images */}
+            {selectedFile.type.startsWith('image/') ? (
+              <img
+                src={URL.createObjectURL(selectedFile)}
+                alt="Preview"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '4px',
+                  objectFit: 'cover',
+                }}
+              />
+            ) : (
+              <span style={{ fontSize: '24px' }}>
+                {selectedFile.type.includes('pdf') ? '📄' : selectedFile.type.includes('video') ? '🎬' : '📎'}
+              </span>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  color: 'var(--text)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {selectedFile.name}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                {(selectedFile.size / 1024).toFixed(1)} KB
+              </div>
+            </div>
             <button
               onClick={() => {
                 setSelectedFile(null);
                 if (fileInputRef.current) fileInputRef.current.value = '';
               }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '18px',
+                color: 'var(--text-secondary)',
+                padding: '2px',
+                lineHeight: 1,
+              }}
             >
               ×
             </button>
           </div>
         )}
         <button
+          type="button"
           onClick={handleSendMessage}
           disabled={(!messageText.trim() && !selectedFile) || isSending}
           className={styles.sendButton}

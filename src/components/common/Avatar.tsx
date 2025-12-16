@@ -26,12 +26,24 @@ interface AvatarProps {
 
 export const Avatar: React.FC<AvatarProps> = ({ src, name, fallbackClass }) => {
   const [showFallback, setShowFallback] = React.useState(!src);
+  const [imgError, setImgError] = React.useState(false);
+
+  // Reset states when src changes (important for async loading)
+  React.useEffect(() => {
+    if (src) {
+      setShowFallback(false);
+      setImgError(false);
+    } else {
+      setShowFallback(true);
+    }
+  }, [src]);
 
   const handleImageError = () => {
+    setImgError(true);
     setShowFallback(true);
   };
 
-  if (showFallback || !src) {
+  if (showFallback || imgError || !src) {
     return <div className={fallbackClass}>{getInitials(name)}</div>;
   }
 

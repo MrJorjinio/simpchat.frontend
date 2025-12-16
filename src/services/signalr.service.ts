@@ -10,7 +10,10 @@ interface ReceiveMessageDto {
   messageId: string;
   chatId: string;
   senderId: string;
+  senderUsername: string;
+  senderAvatarUrl?: string;
   content: string;
+  fileUrl?: string;
   replyId: string | null;
   sentAt: string;
 }

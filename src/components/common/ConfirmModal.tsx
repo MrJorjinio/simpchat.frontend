@@ -23,37 +23,6 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
-  const getVariantStyles = () => {
-    switch (variant) {
-      case 'danger':
-        return {
-          iconBg: 'linear-gradient(135deg, #ef4444, #dc2626)',
-          iconShadow: '0 4px 16px rgba(239, 68, 68, 0.4)',
-          confirmBg: 'linear-gradient(135deg, #ef4444, #dc2626)',
-          confirmShadow: '0 4px 16px rgba(239, 68, 68, 0.4)',
-          confirmHoverShadow: '0 6px 24px rgba(239, 68, 68, 0.5)',
-        };
-      case 'warning':
-        return {
-          iconBg: 'linear-gradient(135deg, #f59e0b, #d97706)',
-          iconShadow: '0 4px 16px rgba(245, 158, 11, 0.4)',
-          confirmBg: 'linear-gradient(135deg, #f59e0b, #d97706)',
-          confirmShadow: '0 4px 16px rgba(245, 158, 11, 0.4)',
-          confirmHoverShadow: '0 6px 24px rgba(245, 158, 11, 0.5)',
-        };
-      case 'info':
-        return {
-          iconBg: 'linear-gradient(135deg, #667eea, #764ba2)',
-          iconShadow: '0 4px 16px rgba(102, 126, 234, 0.4)',
-          confirmBg: 'linear-gradient(135deg, #667eea, #764ba2)',
-          confirmShadow: '0 4px 16px rgba(102, 126, 234, 0.4)',
-          confirmHoverShadow: '0 6px 24px rgba(102, 126, 234, 0.5)',
-        };
-    }
-  };
-
-  const variantStyles = getVariantStyles();
-
   return (
     <AnimatePresence>
       {isOpen && (

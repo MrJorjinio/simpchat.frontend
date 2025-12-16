@@ -1,6 +1,7 @@
 import api from './api';
 import type { Chat } from '../types/api.types';
 import { normalizeChats, normalizeChat } from '../utils/normalizers';
+import { fixMinioUrl } from '../utils/helpers';
 
 export const chatService = {
   getAllChats: async () => {
@@ -109,7 +110,7 @@ export const chatService = {
         id: item.id || item.entityId,
         name: item.name || item.displayName || 'Unknown',
         type: normalizedType,
-        avatar: item.avatarUrl || item.avatar || item.profileImage,
+        avatar: fixMinioUrl(item.avatarUrl || item.avatar || item.profileImage),
         description: item.description || '',
         memberCount: item.memberCount || item.participantsCount || 0,
       };
@@ -143,6 +144,20 @@ export const chatService = {
   addMemberToChannel: async (chatId: string, addingUserId: string) => {
     const response = await api.post<any>('/channels/add-member', null, {
       params: { chatId, addingUserId }
+    });
+    return response.data?.data || response.data;
+  },
+
+  removeMemberFromGroup: async (chatId: string, userId: string) => {
+    const response = await api.post<any>('/groups/remove-member', null, {
+      params: { chatId, removingUserId: userId }
+    });
+    return response.data?.data || response.data;
+  },
+
+  removeMemberFromChannel: async (chatId: string, userId: string) => {
+    const response = await api.post<any>('/channels/remove-member', null, {
+      params: { chatId, removingUserId: userId }
     });
     return response.data?.data || response.data;
   },

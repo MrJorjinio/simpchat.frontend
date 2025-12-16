@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Chat, ChatMember } from '../types/api.types';
 import { useAuthStore } from '../stores/authStore';
 import { chatService } from '../services/chat.service';
-import { getInitials } from '../utils/helpers';
+import { getInitials, fixMinioUrl } from '../utils/helpers';
 import { AddMemberModal, PermissionModal } from './ChatView';
 import { toast } from './common/Toast';
 import { confirm } from './common/ConfirmModal';
@@ -50,8 +50,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
   }
 
   // For DMs, get the other user (not current user)
-  const otherUser = currentChat.type === 'dm' && chatProfile?.participants
-    ? chatProfile.participants.find((p: any) => p.id !== currentUser?.id)
+  // Chat profile returns members array, find the other participant
+  const otherUser = currentChat.type === 'dm' && chatProfile?.members
+    ? chatProfile.members.find((m: any) => m.userId !== currentUser?.id)?.user
     : null;
 
   const handleBanMember = async (member: ChatMember) => {
@@ -143,9 +144,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                   title="Click to view full profile"
                 >
                   <div className={styles.memberAvatar}>
-                    {otherUser.avatarUrl ? (
+                    {(otherUser.avatar || otherUser.avatarUrl) ? (
                       <img
-                        src={otherUser.avatarUrl}
+                        src={fixMinioUrl(otherUser.avatar || otherUser.avatarUrl)}
                         alt={otherUser.username}
                         style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }}
                       />
@@ -297,24 +298,24 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                     <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       Loading members...
                     </div>
-                  ) : chatProfile?.participants && chatProfile.participants.length > 0 ? (
-                    chatProfile.participants.map((participant: any) => {
-                      // Map backend participant structure to frontend member structure
-                      const member = {
-                        id: participant.id,
-                        userId: participant.id,
+                  ) : chatProfile?.members && chatProfile.members.length > 0 ? (
+                    chatProfile.members.map((member: any) => {
+                      // Use normalized member structure - apply fixMinioUrl to avatar
+                      const memberData = {
+                        id: member.id || member.userId,
+                        userId: member.userId || member.id,
                         user: {
-                          id: participant.id,
-                          username: participant.username,
-                          avatar: participant.avatarUrl,
-                          bio: participant.description,
+                          id: member.user?.id || member.userId || member.id,
+                          username: member.user?.username || member.username,
+                          avatar: fixMinioUrl(member.user?.avatar || member.user?.avatarUrl || member.avatarUrl),
+                          bio: member.user?.bio || member.user?.description || member.description,
                         },
-                        role: 'member' as const, // Backend doesn't return role from profile endpoint
+                        role: member.role || 'member' as const,
                       };
 
                       return (
                         <div
-                          key={member.id}
+                          key={memberData.id}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -340,14 +341,14 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                             style={{ flexShrink: 0, cursor: 'pointer' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onViewUserProfile(member.userId);
+                              onViewUserProfile(memberData.userId);
                             }}
                             title="View profile"
                           >
-                            {member.user.avatar ? (
-                              <img src={member.user.avatar} alt={member.user.username} />
+                            {memberData.user.avatar ? (
+                              <img src={memberData.user.avatar} alt={memberData.user.username} />
                             ) : (
-                              <div className={styles.avatarFallback}>{getInitials(member.user.username)}</div>
+                              <div className={styles.avatarFallback}>{getInitials(memberData.user.username)}</div>
                             )}
                           </div>
                           <div
@@ -355,16 +356,16 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                             style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onViewUserProfile(member.userId);
+                              onViewUserProfile(memberData.userId);
                             }}
                             title="View profile"
                           >
                             <div className={styles.memberName} style={{ color: 'var(--text)', fontWeight: 600 }}>
-                              {member.user.username}
+                              {memberData.user.username}
                             </div>
-                            {participant.isOnline !== undefined && (
+                            {member.user?.isOnline !== undefined && (
                               <div className={styles.memberRole} style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
-                                {participant.isOnline ? '🟢 Online' : '⚫ Offline'}
+                                {member.user.isOnline ? '🟢 Online' : '⚫ Offline'}
                               </div>
                             )}
                           </div>
@@ -372,7 +373,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedMember(member as ChatMember);
+                                setSelectedMember(memberData as ChatMember);
                                 setShowPermissionModal(true);
                               }}
                               title="Manage Permissions"
@@ -392,11 +393,11 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                             >
                               🔐
                             </button>
-                            {(member.role as string) !== 'admin' && (
+                            {(memberData.role as string) !== 'admin' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleBanMember(member as ChatMember);
+                                  handleBanMember(memberData as ChatMember);
                                 }}
                                 title="Ban User"
                                 style={{

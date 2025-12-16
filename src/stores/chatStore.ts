@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Chat, Message } from '../types/api.types';
+import type { Chat, BackendMessage } from '../types/api.types';
 import { chatService } from '../services/chat.service';
 import { messageService } from '../services/message.service';
 import { normalizeChats } from '../utils/normalizers';
@@ -13,7 +13,7 @@ interface TypingUser {
 interface ChatState {
   chats: Chat[];
   currentChat: Chat | null;
-  messages: Message[];
+  messages: BackendMessage[];
   isLoadingChats: boolean;
   isLoadingMessages: boolean;
   error: string | null;
@@ -24,6 +24,7 @@ interface ChatState {
   // Chat methods
   loadChats: () => Promise<void>;
   setCurrentChat: (chat: Chat | null) => void;
+  setMessages: (messages: BackendMessage[]) => void;
   loadMessages: (chatId: string, page?: number) => Promise<void>;
   sendMessage: (chatId: string, receiverId: string | undefined, content: string, file?: File) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
@@ -42,7 +43,7 @@ interface ChatState {
   handleReceiveMessage: (message: any) => void;
   handleMessageEdited: (data: { messageId: string; content: string; editedAt: string }) => void;
   handleMessageDeleted: (data: { messageId: string }) => void;
-  handleReactionAdded: (data: { messageId: string; reactionId: string; userId: string }) => void;
+  handleReactionAdded: (data: { messageId: string; reactionId: string; userId: string; chatId: string }) => void;
   handleReactionRemoved: (data: { messageId: string; userId: string }) => void;
   handleUserOnline: (data: { userId: string; isOnline: boolean }) => void;
   handleUserOffline: (data: { userId: string; isOnline: boolean; lastSeen: string }) => void;
@@ -82,6 +83,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setCurrentChat: (chat: Chat | null) => {
     set({ currentChat: chat });
+  },
+
+  setMessages: (messages: BackendMessage[]) => {
+    set({ messages });
   },
 
   loadMessages: async (_chatId: string, _page = 1) => {
@@ -131,7 +136,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const updatedMessage = await messageService.editMessage(messageId, content);
       set((state) => ({
         messages: state.messages.map((msg) =>
-          msg.id === messageId ? updatedMessage : msg
+          msg.messageId === messageId ? updatedMessage : msg
         ),
       }));
     } catch (error: any) {
@@ -145,7 +150,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await messageService.deleteMessage(messageId);
       set((state) => ({
-        messages: state.messages.filter((msg) => msg.id !== messageId),
+        messages: state.messages.filter((msg) => msg.messageId !== messageId),
       }));
     } catch (error: any) {
       const errorMessage = extractErrorMessage(error, 'Failed to delete message');
@@ -240,30 +245,78 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Real-time event handlers
   handleReceiveMessage: (message: any) => {
     console.log('[ChatStore] Received message:', message);
-    // Note: We don't update state.messages directly since they're BackendMessage[] type
-    // The messages will be refreshed when the chat is reloaded
-    // This handler is mainly for triggering UI updates or notifications
-    console.log('[ChatStore] Message received via SignalR, messages will be displayed real-time');
+    const state = get();
+
+    // Add message to state if it's for the current chat
+    if (state.currentChat && message.chatId === state.currentChat.id) {
+      // Check if message already exists (avoid duplicates)
+      const exists = state.messages.some(m => m.messageId === message.messageId);
+      if (!exists) {
+        const newMessage: BackendMessage = {
+          messageId: message.messageId,
+          chatId: message.chatId,
+          senderId: message.senderId,
+          senderUsername: message.senderUsername || 'Unknown',
+          senderAvatarUrl: message.senderAvatarUrl,
+          content: message.content,
+          fileUrl: message.fileUrl,
+          replyId: message.replyId,
+          sentAt: message.sentAt,
+          isSeen: false,
+          isNotificated: false,
+          notificationId: '',
+          messageReactions: [],
+          isCurrentUser: false, // Will be determined by UI
+        };
+        set({ messages: [...state.messages, newMessage] });
+        console.log('[ChatStore] Added new message to state');
+      }
+    }
+
+    // Update chat list to show new last message
+    get().loadChats();
   },
 
   handleMessageEdited: (data) => {
     console.log('[ChatStore] Message edited:', data);
-    // Messages will be synced automatically; Dashboard handles refresh
+    set((state) => ({
+      messages: state.messages.map(m =>
+        m.messageId === data.messageId
+          ? { ...m, content: data.content }
+          : m
+      ),
+    }));
   },
 
   handleMessageDeleted: (data) => {
     console.log('[ChatStore] Message deleted:', data);
-    // Messages will be synced automatically; Dashboard handles refresh
+    set((state) => ({
+      messages: state.messages.filter(m => m.messageId !== data.messageId),
+    }));
   },
 
-  handleReactionAdded: (data) => {
+  handleReactionAdded: (data: { messageId: string; reactionId: string; userId: string; chatId: string }) => {
     console.log('[ChatStore] Reaction added:', data);
-    // Reactions will be synced automatically; Dashboard handles refresh
+    // Backend doesn't send emoji/userName in the event, so we add a placeholder
+    // The full reaction data will be available when messages are reloaded
+    set((state) => ({
+      messages: state.messages.map(m =>
+        m.messageId === data.messageId
+          ? {
+              ...m,
+              messageReactions: [
+                ...(m.messageReactions || []),
+                { id: data.reactionId, emoji: '', userId: data.userId, userName: '' }
+              ]
+            }
+          : m
+      ),
+    }));
   },
 
   handleReactionRemoved: (data) => {
     console.log('[ChatStore] Reaction removed:', data);
-    // Reactions will be synced automatically; Dashboard handles refresh
+    // For now just log - proper implementation would need reaction ID
   },
 
   handleUserOnline: (data) => {

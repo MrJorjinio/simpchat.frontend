@@ -22,6 +22,7 @@
  */
 
 import type { Chat, User, BackendMessage } from '../types/api.types';
+import { fixMinioUrl } from './helpers';
 
 /**
  * Normalize chat type from ACTUAL backend values to frontend values
@@ -61,8 +62,6 @@ export const normalizeChatType = (type: any): 'dm' | 'group' | 'channel' => {
 export const normalizeChat = (chat: any): Chat => {
   if (!chat) return {} as Chat;
 
-  console.log('[Normalizer] Normalizing chat:', chat);
-
   // Normalize privacy: backend enum 0=Public, 1=Private
   let privacy: 'public' | 'private' | undefined = undefined;
   if (chat.privacy !== null && chat.privacy !== undefined) {
@@ -77,22 +76,33 @@ export const normalizeChat = (chat: any): Chat => {
     id: chat.id,
     name: chat.name || 'Unknown',
     type: normalizeChatType(chat.type),
-    avatar: chat.avatarUrl || chat.avatar || chat.profileImage,
+    // Support both camelCase (avatarUrl) and PascalCase (AvatarUrl) from backend
+    avatar: fixMinioUrl(chat.avatarUrl || chat.AvatarUrl || chat.avatar || chat.profileImage),
     description: chat.description || '',
     privacy,
-    members: (chat.members || []).map((m: any) => ({
-      id: m.id || m.userId || m.user?.id,
-      userId: m.userId || m.id || m.user?.id,
-      user: m.user || ({
+    members: (chat.members || []).map((m: any) => {
+      // Normalize member user object with avatar (support both camelCase and PascalCase)
+      const userObj = m.user ? {
+        ...m.user,
+        id: m.user.id || m.user.userId || m.userId,
+        avatar: fixMinioUrl(m.user.avatarUrl || m.user.AvatarUrl || m.user.avatar || m.user.profileImage),
+      } : {
         id: m.userId || m.id,
         username: m.username || 'Unknown',
         email: '',
+        avatar: fixMinioUrl(m.avatarUrl || m.AvatarUrl || m.avatar),
         onlineStatus: 'offline' as const,
         lastSeen: new Date().toISOString(),
-      } as any),
-      joinedAt: m.joinedAt,
-      role: m.role || 'member',
-    })),
+      };
+
+      return {
+        id: m.id || m.userId || m.user?.id,
+        userId: m.userId || m.id || m.user?.id,
+        user: userObj as any,
+        joinedAt: m.joinedAt,
+        role: m.role || 'member',
+      };
+    }),
     lastMessage: chat.lastMessage ? {
       id: chat.lastMessage.id,
       content: chat.lastMessage.content,
@@ -103,8 +113,12 @@ export const normalizeChat = (chat: any): Chat => {
     isOnline: chat.isOnline !== undefined ? chat.isOnline : false,
     createdAt: chat.created || chat.createdAt || new Date().toISOString(),
     updatedAt: chat.userLastMessage || chat.updatedAt || chat.createdAt || new Date().toISOString(),
-    // Preserve messages from backend response (used for displaying chat history)
-    messages: chat.messages as BackendMessage[] | undefined,
+    // Normalize messages - fix MinIO URLs for file attachments and sender avatars
+    messages: chat.messages ? chat.messages.map((msg: any) => ({
+      ...msg,
+      fileUrl: fixMinioUrl(msg.fileUrl),
+      senderAvatarUrl: fixMinioUrl(msg.senderAvatarUrl),
+    })) as BackendMessage[] : undefined,
     participantsCount: chat.participantsCount,
     participantsOnline: chat.participantsOnline,
     notificationsCount: chat.notificationsCount,
@@ -144,7 +158,8 @@ export const normalizeUser = (user: any): User => {
     id: userId,
     username: user.username || user.displayName || user.name || 'Unknown',
     email: user.email || '', // IMPORTANT: GET /users/me does NOT return email field
-    avatar: user.avatarUrl || user.avatar || user.profileImage,
+    // Support both camelCase (avatarUrl) and PascalCase (AvatarUrl) from backend
+    avatar: fixMinioUrl(user.avatarUrl || user.AvatarUrl || user.avatar || user.profileImage),
     bio: user.description || user.bio || '', // Backend uses "description"
     onlineStatus,
     lastSeen: user.lastSeen || new Date().toISOString(),
@@ -192,6 +207,9 @@ export const normalizeBackendMessage = (msg: BackendMessage): any => {
     // For now, use the backend structure as-is for other fields
     // A full Message object would need more context (sender user object, etc.)
     ...msg,
+    // Fix MinIO URLs for file attachments and sender avatar
+    fileUrl: fixMinioUrl(msg.fileUrl),
+    senderAvatarUrl: fixMinioUrl(msg.senderAvatarUrl),
   };
 };
 
