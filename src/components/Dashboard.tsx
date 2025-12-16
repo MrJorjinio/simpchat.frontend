@@ -4,7 +4,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useThemeStore } from '../stores/themeStore';
 import { chatService } from '../services/chat.service';
 import api from '../services/api';
-import { extractErrorMessage } from '../utils/errorHandler';
+import { extractErrorMessage, getBanErrorMessage, isBanError } from '../utils/errorHandler';
 import type { Chat, User } from '../types/api.types';
 import styles from './Dashboard.module.css';
 import AdminPanel from './AdminPanel';
@@ -981,6 +981,12 @@ const Dashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to send message:', error);
+      // Show ban error or generic error message
+      if (isBanError(error)) {
+        toast.error(getBanErrorMessage(error));
+      } else {
+        toast.error(extractErrorMessage(error, 'Failed to send message'));
+      }
     }
   };
 
@@ -1075,13 +1081,13 @@ const Dashboard: React.FC = () => {
     if (!currentChat) return;
     try {
       await chatService.banUser(currentChat.id, userId);
-      toast.success('User banned successfully');
+      toast.success('User banned and removed from chat');
       // Reload chat profile
       const updated = await chatService.getChatProfile(currentChat.id);
       useChatStore.getState().setCurrentChat(updated);
     } catch (error) {
       console.error('Failed to ban user:', error);
-      toast.error(extractErrorMessage(error, 'Failed to ban user'));
+      toast.error(getBanErrorMessage(error));
     }
   };
 
@@ -1094,7 +1100,7 @@ const Dashboard: React.FC = () => {
       useChatStore.getState().setCurrentChat(updated);
     } catch (error) {
       console.error('Failed to unban user:', error);
-      toast.error(extractErrorMessage(error, 'Failed to unban user'));
+      toast.error(getBanErrorMessage(error));
     }
   };
 

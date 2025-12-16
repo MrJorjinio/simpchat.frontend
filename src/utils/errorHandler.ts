@@ -52,3 +52,40 @@ export function extractValidationErrors(error: any): Record<string, string[]> | 
   }
   return null;
 }
+
+/**
+ * Extracts error code from API error response
+ */
+export function extractErrorCode(error: any): string | null {
+  if (error.response?.data?.error?.code) {
+    return error.response.data.error.code;
+  }
+  return null;
+}
+
+/**
+ * Checks if the error is a ban-related error
+ */
+export function isBanError(error: any): boolean {
+  const code = extractErrorCode(error);
+  return code === 'Chat.Ban.UserBanned';
+}
+
+/**
+ * Gets a user-friendly message for ban errors
+ */
+export function getBanErrorMessage(error: any): string {
+  const code = extractErrorCode(error);
+  switch (code) {
+    case 'Chat.Ban.UserBanned':
+      return 'You are banned from this chat and cannot perform this action.';
+    case 'Chat.Ban.AlreadyBanned':
+      return 'This user is already banned from this chat.';
+    case 'Chat.Ban.CannotBanSelf':
+      return 'You cannot ban yourself.';
+    case 'Chat.Ban.CannotBanOwner':
+      return 'You cannot ban the owner of this chat.';
+    default:
+      return extractErrorMessage(error, 'An error occurred');
+  }
+}

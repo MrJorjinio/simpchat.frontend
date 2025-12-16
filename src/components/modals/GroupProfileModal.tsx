@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, Calendar, Crown, Shield, Edit2, Trash2, LogOut, Key, Settings } from 'lucide-react';
+import { X, Users, Calendar, Crown, Shield, Edit2, Trash2, LogOut, Key, Settings, UserPlus, Ban } from 'lucide-react';
 import type { Chat, ChatMember } from '../../types/api.types';
 import { chatService } from '../../services/chat.service';
 import { useChatStore } from '../../stores/chatStore';
+import { signalRService } from '../../services/signalr.service';
 import { OnlineStatusIndicator } from '../common/OnlineStatusIndicator';
 import { formatLastSeen } from '../../utils/helpers';
 import { toast } from '../common/Toast';
 import { confirm } from '../common/ConfirmModal';
+import { isBanError, getBanErrorMessage, extractErrorMessage } from '../../utils/errorHandler';
 
 const AVAILABLE_PERMISSIONS = [
   'SendMessage',
@@ -66,8 +68,11 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   const [addMemberQuery, setAddMemberQuery] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
+  const [presenceLoaded, setPresenceLoaded] = useState(false);
 
-  const { isUserOnline, getUserLastSeen, getOnlineMembersCount } = useChatStore();
+  const { isUserOnline, getUserLastSeen, loadChats, setInitialPresenceStates } = useChatStore();
 
   // Determine if current user is admin
   const currentMember = profile?.members.find(m => m.userId === currentUserId);
@@ -75,6 +80,8 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
 
   useEffect(() => {
     if (isOpen && chat.id) {
+      setIsBanned(false); // Reset banned state when modal opens
+      setPresenceLoaded(false); // Reset presence state when modal opens
       loadProfile();
     }
   }, [isOpen, chat.id]);
@@ -85,10 +92,50 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
     try {
       const profileData = await chatService.getChatProfile(chat.id);
       setProfile(profileData as ChatProfile);
+
+      // Fetch presence states for all profile members
+      const memberIds = (profileData as ChatProfile).members?.map(m => m.userId) || [];
+      if (memberIds.length > 0) {
+        try {
+          const presenceStates = await signalRService.getPresenceStates(memberIds);
+          if (Object.keys(presenceStates).length > 0) {
+            setInitialPresenceStates(presenceStates);
+            setPresenceLoaded(true); // Trigger re-render with updated presence
+          }
+        } catch (presenceError) {
+          console.error('[GroupProfileModal] Failed to fetch presence states:', presenceError);
+        }
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load profile');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Determine if current user is a member
+  const isMember = profile?.members.some(m => m.userId === currentUserId);
+
+  const handleJoin = async () => {
+    if (!chat || !chat.type) return;
+
+    setIsJoining(true);
+    try {
+      const chatType = chat.type as 'group' | 'channel';
+      await chatService.joinChat(chat.id, chatType);
+      toast.success(`Successfully joined the ${chatType}!`);
+      await loadChats(); // Reload chats to update sidebar
+      await loadProfile(); // Reload profile to update member list
+    } catch (error: any) {
+      console.error('Failed to join:', error);
+      if (isBanError(error)) {
+        setIsBanned(true);
+        toast.error(getBanErrorMessage(error));
+      } else {
+        toast.error(extractErrorMessage(error, 'Failed to join'));
+      }
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -168,7 +215,11 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
       await loadProfile(); // Reload to show new member
     } catch (error: any) {
       console.error('Failed to add member:', error);
-      toast.error(error.response?.data?.message || 'Failed to add member');
+      if (isBanError(error)) {
+        toast.error('This user is banned from this chat and cannot be added.');
+      } else {
+        toast.error(extractErrorMessage(error, 'Failed to add member'));
+      }
     }
   };
 
@@ -217,8 +268,13 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
     groupedMembers[member.role].push(member);
   });
 
-  const onlineCount = getOnlineMembersCount(chat.id);
+  // Calculate online count directly from profile members (more reliable than store lookup)
+  // Note: presenceLoaded state change triggers re-render after presence states are fetched
+  const onlineCount = profile?.members.filter(m => isUserOnline(m.userId)).length || 0;
   const totalMembers = profile?.members.length || 0;
+
+  // Debug log for online count
+  console.log('[GroupProfileModal] Online count:', onlineCount, 'Total members:', totalMembers, 'Presence loaded:', presenceLoaded);
 
   return (
     <>
@@ -561,8 +617,73 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                 </div>
               )}
 
+              {/* Banned User Message */}
+              {isBanned && (
+                <div style={{
+                  marginBottom: '24px',
+                  padding: '16px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                }}>
+                  <Ban size={32} color="#ef4444" style={{ marginBottom: '8px' }} />
+                  <h4 style={{ margin: '0 0 8px 0', color: '#ef4444', fontSize: '16px', fontWeight: 600 }}>
+                    You Are Banned
+                  </h4>
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '14px' }}>
+                    Sorry, you have been banned from this {chat.type === 'channel' ? 'channel' : 'group'} and cannot rejoin.
+                  </p>
+                </div>
+              )}
+
+              {/* Join Button for non-members (public groups/channels only) */}
+              {!isMember && !isBanned && profile?.privacy === 'public' && (
+                <div style={{ marginBottom: '24px' }}>
+                  <button
+                    onClick={handleJoin}
+                    disabled={isJoining}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      backgroundColor: isJoining ? 'var(--text-muted)' : '#51cf66',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: isJoining ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'background-color 0.2s',
+                    }}
+                  >
+                    <UserPlus size={18} />
+                    {isJoining ? 'Joining...' : `Join ${chat.type === 'channel' ? 'Channel' : 'Group'}`}
+                  </button>
+                </div>
+              )}
+
+              {/* Private group/channel message for non-members */}
+              {!isMember && !isBanned && profile?.privacy === 'private' && (
+                <div style={{
+                  marginBottom: '24px',
+                  padding: '16px',
+                  backgroundColor: 'var(--background)',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                }}>
+                  <Shield size={24} color="var(--text-muted)" style={{ marginBottom: '8px' }} />
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '14px' }}>
+                    This is a private {chat.type === 'channel' ? 'channel' : 'group'}. You need an invitation to join.
+                  </p>
+                </div>
+              )}
+
               {/* Leave Group Button for non-admins */}
-              {!isAdmin && onLeaveGroup && (
+              {!isAdmin && isMember && onLeaveGroup && (
                 <div style={{ marginBottom: '24px' }}>
                   <button
                     onClick={handleLeave}

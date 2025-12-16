@@ -3,6 +3,7 @@ import type { Chat, ChatMember } from '../types/api.types';
 import { useAuthStore } from '../stores/authStore';
 import { chatService } from '../services/chat.service';
 import { getInitials, fixMinioUrl } from '../utils/helpers';
+import { getBanErrorMessage } from '../utils/errorHandler';
 import { AddMemberModal, PermissionModal } from './ChatView';
 import { toast } from './common/Toast';
 import { confirm } from './common/ConfirmModal';
@@ -68,11 +69,11 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
 
     try {
       await chatService.banUser(currentChat.id, member.userId);
-      toast.success(`${member.user.username} has been banned.`);
+      toast.success(`${member.user.username} has been banned and removed from chat.`);
       await onReloadChat();
     } catch (error) {
       console.error('Failed to ban user:', error);
-      toast.error('Failed to ban user. You may not have permission.');
+      toast.error(getBanErrorMessage(error));
     }
   };
 
