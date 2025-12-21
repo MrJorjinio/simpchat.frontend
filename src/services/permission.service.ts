@@ -10,7 +10,7 @@ export const permissionService = {
 
   getUserPermissions: async (chatId: string, userId: string) => {
     const response = await api.get<any>(
-      `/permissions/${chatId}/${userId}`
+      `/permissions/${chatId}/user/${userId}`
     );
     return response.data?.data || response.data;
   },
@@ -21,9 +21,9 @@ export const permissionService = {
     permissionName: string
   ) => {
     const response = await api.post<any>('/permissions/grant', {
-      chatId,
-      userId,
-      permission: permissionName,
+      ChatId: chatId,
+      UserId: userId,
+      PermissionName: permissionName,
     });
     return response.data?.data || response.data;
   },
@@ -34,9 +34,9 @@ export const permissionService = {
     permissionName: string
   ) => {
     const response = await api.post<any>('/permissions/revoke', {
-      chatId,
-      userId,
-      permission: permissionName,
+      ChatId: chatId,
+      UserId: userId,
+      PermissionName: permissionName,
     });
     return response.data?.data || response.data;
   },

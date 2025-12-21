@@ -1512,10 +1512,10 @@
 /* Messages Container & Styles */
 .messageGroup {
   display: flex;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   position: relative;
   align-items: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
 
 .ownMessage {
@@ -1566,8 +1566,8 @@
 
 .messageBubble {
   max-width: 60%;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 6px 10px;
+  border-radius: 10px;
   word-wrap: break-word;
   transition: all 0.2s ease;
   display: inline-block;

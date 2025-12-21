@@ -36,6 +36,7 @@ export const useSignalR = (handlers?: SignalREventHandlers) => {
     sendTyping: signalRService.sendTyping.bind(signalRService),
     sendStopTyping: signalRService.sendStopTyping.bind(signalRService),
     markNotificationsAsSeen: signalRService.markNotificationsAsSeen.bind(signalRService),
+    markMessagesAsSeen: signalRService.markMessagesAsSeen.bind(signalRService),
     getPresenceStates: signalRService.getPresenceStates.bind(signalRService),
   };
 };

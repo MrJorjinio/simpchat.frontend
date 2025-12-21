@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import styles from './Toast.module.css';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -61,6 +61,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
       <span className={styles.message}>{toast.message}</span>
       <button
         onClick={handleClose}
+        aria-label="Close"
         style={{
           background: 'rgba(255, 255, 255, 0.15)',
           border: 'none',
@@ -72,9 +73,12 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
           alignItems: 'center',
           justifyContent: 'center',
           marginLeft: '8px',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          lineHeight: 1,
         }}
       >
-        <X size={16} strokeWidth={3} />
+        ×
       </button>
       <div className={styles.progressBar} style={{ animationDuration: `${toast.duration || 4000}ms` }} />
     </div>

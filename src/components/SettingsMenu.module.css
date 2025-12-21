@@ -43,7 +43,7 @@
 }
 
 .header {
-  padding: 20px;
+  padding: 16px 20px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
@@ -112,11 +112,11 @@
 }
 
 .content {
-  padding: 16px;
+  padding: 12px 16px;
 }
 
 .section {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .sectionHeader {
@@ -124,8 +124,8 @@
   align-items: center;
   gap: 6px;
   padding: 0 8px;
-  margin-bottom: 8px;
-  font-size: 11px;
+  margin-bottom: 4px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -145,8 +145,8 @@
 .menuItem {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -173,16 +173,16 @@
 }
 
 .itemIcon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .menuItem span {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #1e293b;
 }
@@ -194,7 +194,7 @@
 .divider {
   height: 1px;
   background: rgba(0, 0, 0, 0.06);
-  margin: 16px 0;
+  margin: 10px 0;
 }
 
 .menu.dark .divider {
@@ -207,13 +207,13 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 12px;
+  padding: 10px;
   background: #ef4444;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   color: white;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   transition: background 0.1s ease;
 }

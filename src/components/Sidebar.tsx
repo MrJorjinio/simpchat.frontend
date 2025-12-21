@@ -39,18 +39,67 @@ const formatTime = (dateString: string | undefined): string => {
   }
 };
 
-const getLastMessagePreview = (chat: Chat): string => {
-  if (!chat.lastMessage) return 'No messages yet';
-  const content = chat.lastMessage.content || '(No content)';
+interface LastMessageDisplay {
+  preview: string;
+  isReply: boolean;
+  hasMention: boolean;
+  hasAttachment: boolean;
+  isOwnMessage: boolean;
+  isSeen: boolean;
+}
 
-  // For groups and channels, show sender name
-  if (chat.type !== 'dm' && chat.lastMessage.sender) {
-    const senderName = chat.lastMessage.sender.username || 'Unknown';
-    const preview = `${senderName}: ${content}`;
-    return preview.length > 50 ? preview.substring(0, 47) + '...' : preview;
+const getLastMessageDisplay = (chat: Chat, currentUserId?: string): LastMessageDisplay => {
+  if (!chat.lastMessage) {
+    return { preview: 'No messages yet', isReply: false, hasMention: false, hasAttachment: false, isOwnMessage: false, isSeen: false };
   }
 
-  return content.length > 50 ? content.substring(0, 47) + '...' : content;
+  const lastMsg = chat.lastMessage as any; // Cast to access all fields
+  const content = lastMsg.content || '';
+
+  // Check replyId from backend
+  const isReply = !!lastMsg.replyId;
+
+  // Check fileUrl from backend
+  const hasAttachment = !!lastMsg.fileUrl;
+
+  // Check if this is own message using senderId
+  const isOwnMessage = currentUserId ? lastMsg.senderId === currentUserId : false;
+
+  // Check if message is seen (use actual isSeen field from the message)
+  const isSeen = lastMsg.isSeen === true;
+
+  // Check for @mentions (matches @username pattern)
+  const hasMention = currentUserId ? /@\w+/.test(content) : false;
+
+  let displayContent = content;
+
+  // If there's an attachment but no content, show attachment indicator
+  if (!content && hasAttachment) {
+    displayContent = '📎 Attachment';
+  }
+
+  // For groups and channels, show sender name (use senderUsername from backend)
+  if (chat.type !== 'dm' && lastMsg.senderUsername) {
+    const senderName = lastMsg.senderUsername || 'Unknown';
+    const preview = `${senderName}: ${displayContent}`;
+    return {
+      preview: preview.length > 40 ? preview.substring(0, 37) + '...' : preview,
+      isReply,
+      hasMention,
+      hasAttachment,
+      isOwnMessage,
+      isSeen,
+    };
+  }
+
+  return {
+    preview: displayContent.length > 40 ? displayContent.substring(0, 37) + '...' : displayContent,
+    isReply,
+    hasMention,
+    hasAttachment,
+    isOwnMessage,
+    isSeen,
+  };
 };
 
 // SIDEBAR COMPONENT
@@ -71,6 +120,7 @@ export interface SidebarProps {
   onClearSearch: () => void;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  onlineUsers?: Map<string, boolean>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -90,7 +140,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearSearch,
   isMobileOpen = false,
   onMobileClose,
+  onlineUsers,
 }) => {
+  // Helper to check if the other user in a DM is online
+  const isDmUserOnline = (chat: Chat): boolean => {
+    if (chat.type !== 'dm') return false;
+
+    // First check the real-time onlineUsers map
+    if (onlineUsers && chat.members) {
+      const otherMember = chat.members.find(m => m.userId !== user?.id);
+      if (otherMember?.userId && onlineUsers.has(otherMember.userId)) {
+        return onlineUsers.get(otherMember.userId) || false;
+      }
+    }
+
+    // Fallback to chat.isOnline from initial load
+    return chat.isOnline || false;
+  };
   const searchBarRef = useRef<HTMLDivElement>(null);
 
   // Close search results when clicking outside
@@ -224,7 +290,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Avatar */}
             <div className={styles.chatAvatar}>
               <Avatar src={chat.avatar} name={chat.name} fallbackClass={styles.avatarFallback} />
-              {chat.type === 'dm' && chat.isOnline && <div className={styles.onlineIndicator} />}
+              {chat.type === 'dm' && isDmUserOnline(chat) && <div className={styles.onlineIndicator} />}
             </div>
 
             {/* Chat Info */}
@@ -242,7 +308,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
               <div className={styles.chatPreview}>
-                <span>{getLastMessagePreview(chat)}</span>
+                {(() => {
+                  const display = getLastMessageDisplay(chat, user?.id);
+                  return (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {/* Sent/Seen checkmark for all messages */}
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          color: display.isSeen ? '#51cf66' : 'var(--text-secondary)',
+                          fontWeight: 500,
+                          flexShrink: 0,
+                          opacity: display.isSeen ? 1 : 0.7,
+                        }}
+                        title={display.isSeen ? 'Seen' : 'Sent'}
+                      >
+                        {display.isSeen ? '✓✓' : '✓'}
+                      </span>
+                      {display.isReply && (
+                        <span style={{ fontSize: '10px', opacity: 0.8, flexShrink: 0 }} title="Reply">↩️</span>
+                      )}
+                      {display.hasMention && (
+                        <span style={{
+                          fontSize: '9px',
+                          backgroundColor: 'var(--accent)',
+                          color: '#fff',
+                          padding: '1px 4px',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }} title="Mention">@</span>
+                      )}
+                      <span style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1,
+                      }}>
+                        {display.preview}
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           </div>

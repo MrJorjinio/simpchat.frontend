@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageCircle, UserX } from 'lucide-react';
+import { MessageCircle, UserX, UserCheck, Ban } from 'lucide-react';
 import type { User } from '../../types/api.types';
 import { userService } from '../../services/user.service';
 import { useChatStore } from '../../stores/chatStore';
@@ -12,6 +12,7 @@ interface UserProfileViewerModalProps {
   userId: string;
   onSendMessage?: (userId: string) => void;
   onBlockUser?: (userId: string) => void;
+  onUnblockUser?: (userId: string) => void;
 }
 
 export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
@@ -20,18 +21,45 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
   userId,
   onSendMessage,
   onBlockUser,
+  onUnblockUser,
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [iBlockedThem, setIBlockedThem] = useState(false);
+  const [theyBlockedMe, setTheyBlockedMe] = useState(false);
+  const [isCheckingBlockStatus, setIsCheckingBlockStatus] = useState(false);
 
-  const { isUserOnline } = useChatStore();
+  const { isUserOnline, usersYouBlocked, blockedByUsers } = useChatStore();
 
   useEffect(() => {
     if (isOpen && userId) {
       loadUserProfile();
+      checkBlockStatus();
     }
   }, [isOpen, userId]);
+
+  // Subscribe to store's block status changes for real-time updates
+  useEffect(() => {
+    if (!isOpen || !userId) return;
+
+    const iBlockedInStore = usersYouBlocked.has(userId);
+    const blockedByInStore = blockedByUsers.has(userId);
+
+    console.log('[UserProfileViewer] Store block status changed:', {
+      userId,
+      iBlockedInStore,
+      blockedByInStore,
+    });
+
+    // Update local state if store has different values
+    if (iBlockedInStore !== iBlockedThem) {
+      setIBlockedThem(iBlockedInStore);
+    }
+    if (blockedByInStore !== theyBlockedMe) {
+      setTheyBlockedMe(blockedByInStore);
+    }
+  }, [isOpen, userId, usersYouBlocked, blockedByUsers]);
 
   const loadUserProfile = async () => {
     setIsLoading(true);
@@ -46,6 +74,23 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
       setError(err.response?.data?.message || 'Failed to load user profile');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkBlockStatus = async () => {
+    setIsCheckingBlockStatus(true);
+    try {
+      const status = await userService.getMutualBlockStatus(userId);
+      console.log('[UserProfileViewer] Block status:', status);
+      setIBlockedThem(status.iBlockedThem);
+      setTheyBlockedMe(status.theyBlockedMe);
+    } catch (err) {
+      console.error('[UserProfileViewer] Error checking block status:', err);
+      // Default to not blocked on error
+      setIBlockedThem(false);
+      setTheyBlockedMe(false);
+    } finally {
+      setIsCheckingBlockStatus(false);
     }
   };
 
@@ -69,9 +114,29 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
 
     if (confirmed) {
       onBlockUser(userId);
-      onClose();
+      setIBlockedThem(true);
     }
   };
+
+  const handleUnblock = async () => {
+    if (!onUnblockUser) return;
+
+    const confirmed = await confirm({
+      title: 'Unblock User',
+      message: `Are you sure you want to unblock ${user?.username || 'this user'}? They will be able to message you again.`,
+      confirmText: 'Unblock',
+      cancelText: 'Cancel',
+      variant: 'info',
+    });
+
+    if (confirmed) {
+      onUnblockUser(userId);
+      setIBlockedThem(false);
+    }
+  };
+
+  // Check if messaging is blocked (either direction)
+  const isMessagingBlocked = iBlockedThem || theyBlockedMe;
 
   const online = user ? isUserOnline(user.id) : false;
 
@@ -157,6 +222,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
               </h2>
               <button
                 onClick={onClose}
+                aria-label="Close"
                 style={{
                   background: 'none',
                   border: 'none',
@@ -167,11 +233,14 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                   justifyContent: 'center',
                   color: '#94a3b8',
                   transition: 'color 0.15s ease',
+                  fontSize: '24px',
+                  fontWeight: 300,
+                  lineHeight: 1,
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.color = '#f1f5f9'}
                 onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
               >
-                <X size={22} strokeWidth={2.5} />
+                ×
               </button>
             </div>
 
@@ -335,19 +404,45 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                     </p>
                   </div>
 
+                  {/* Block Status Banner */}
+                  {!isCheckingBlockStatus && (theyBlockedMe || iBlockedThem) && (
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        borderRadius: '10px',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                      }}
+                    >
+                      <Ban size={18} color="#f87171" />
+                      <span style={{ fontSize: '14px', color: '#f87171' }}>
+                        {theyBlockedMe && iBlockedThem
+                          ? 'You have blocked each other'
+                          : theyBlockedMe
+                          ? 'This user has blocked you'
+                          : 'You have blocked this user'}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+                    {/* Send Message button - disabled if blocked */}
                     {onSendMessage && (
                       <button
                         onClick={handleSendMessage}
+                        disabled={isMessagingBlocked || isCheckingBlockStatus}
                         style={{
                           width: '100%',
                           padding: '12px 16px',
-                          background: '#6366f1',
+                          background: isMessagingBlocked ? '#4b5563' : '#6366f1',
                           color: 'white',
                           border: 'none',
                           borderRadius: '10px',
-                          cursor: 'pointer',
+                          cursor: isMessagingBlocked ? 'not-allowed' : 'pointer',
                           fontSize: '14px',
                           fontWeight: 500,
                           display: 'flex',
@@ -355,39 +450,77 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                           justifyContent: 'center',
                           gap: '8px',
                           transition: 'background 0.15s ease',
+                          opacity: isMessagingBlocked ? 0.6 : 1,
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#5558e3'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#6366f1'}
+                        onMouseEnter={(e) => {
+                          if (!isMessagingBlocked) e.currentTarget.style.background = '#5558e3';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isMessagingBlocked) e.currentTarget.style.background = '#6366f1';
+                        }}
                       >
                         <MessageCircle size={18} />
-                        Send Message
+                        {isMessagingBlocked ? 'Cannot Message' : 'Send Message'}
                       </button>
                     )}
-                    {onBlockUser && (
-                      <button
-                        onClick={handleBlock}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          background: 'rgba(239, 68, 68, 0.1)',
-                          color: '#f87171',
-                          border: '1px solid rgba(239, 68, 68, 0.2)',
-                          borderRadius: '10px',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '8px',
-                          transition: 'background 0.15s ease',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                      >
-                        <UserX size={18} />
-                        Block User
-                      </button>
+
+                    {/* Block/Unblock button */}
+                    {iBlockedThem ? (
+                      // Show Unblock button if I blocked them
+                      onUnblockUser && (
+                        <button
+                          onClick={handleUnblock}
+                          style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            background: 'rgba(34, 197, 94, 0.1)',
+                            color: '#4ade80',
+                            border: '1px solid rgba(34, 197, 94, 0.2)',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)'}
+                        >
+                          <UserCheck size={18} />
+                          Unblock User
+                        </button>
+                      )
+                    ) : (
+                      // Show Block button if I haven't blocked them
+                      onBlockUser && (
+                        <button
+                          onClick={handleBlock}
+                          style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            color: '#f87171',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                        >
+                          <UserX size={18} />
+                          Block User
+                        </button>
+                      )
                     )}
                   </div>
                 </>

@@ -116,22 +116,33 @@ export const normalizeChat = (chat: any): Chat => {
       id: chat.lastMessage.id,
       content: chat.lastMessage.content,
       createdAt: chat.lastMessage.createdAt || chat.lastMessage.sentAt || new Date().toISOString(),
+      // New fields for reply and seen indicators
+      senderId: chat.lastMessage.senderId,
+      senderUsername: chat.lastMessage.senderUsername,
+      fileUrl: fixMinioUrl(chat.lastMessage.fileUrl),
+      replyId: chat.lastMessage.replyId,
+      isSeen: chat.lastMessage.isSeen ?? false,
     } as any : undefined,
     // Map notificationsCount or unreadCount - backend uses "notificationsCount"
     unreadCount: chat.unreadCount !== undefined ? chat.unreadCount : (chat.notificationsCount || 0),
     createdAt: chat.created || chat.createdAt || new Date().toISOString(),
     updatedAt: chat.userLastMessage || chat.updatedAt || chat.createdAt || new Date().toISOString(),
-    // Normalize messages - fix MinIO URLs for file attachments and sender avatars
+    // Normalize messages - fix MinIO URLs and ensure isSeen/isCurrentUser are mapped
     messages: chat.messages ? chat.messages.map((msg: any) => ({
       ...msg,
       fileUrl: fixMinioUrl(msg.fileUrl),
       senderAvatarUrl: fixMinioUrl(msg.senderAvatarUrl),
+      // Ensure isSeen is properly mapped (backend sends as isSeen in camelCase)
+      isSeen: msg.isSeen ?? msg.IsSeen ?? false,
+      seenAt: msg.seenAt ?? msg.SeenAt,
+      isCurrentUser: msg.isCurrentUser ?? msg.IsCurrentUser ?? false,
     })) as BackendMessage[] : undefined,
     // Support both camelCase and PascalCase from backend
     participantsCount: chat.participantsCount ?? chat.ParticipantsCount,
     participantsOnline: chat.participantsOnline ?? chat.ParticipantsOnline,
     notificationsCount: chat.notificationsCount ?? chat.NotificationsCount,
     isOnline: chat.isOnline ?? chat.IsOnline ?? false,
+    createdById: chat.createdById ?? chat.CreatedById ?? chat.ownerId ?? chat.OwnerId,
   };
 
   // Debug: log normalized result
@@ -139,6 +150,8 @@ export const normalizeChat = (chat: any): Chat => {
     id: result.id,
     name: result.name,
     participantsCount: result.participantsCount,
+    createdById: result.createdById,
+    membersCount: result.members?.length,
   });
 
   return result;

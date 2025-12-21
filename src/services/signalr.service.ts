@@ -16,6 +16,8 @@ interface ReceiveMessageDto {
   fileUrl?: string;
   replyId: string | null;
   sentAt: string;
+  isSeen: boolean;
+  seenAt?: string | null;
 }
 
 interface MessageEditedDto {
@@ -33,7 +35,7 @@ interface MessageDeletedDto {
 
 interface ReactionDto {
   messageId: string;
-  reactionId: string;
+  reactionType: string;
   userId: string;
   chatId: string;
 }
@@ -55,6 +57,97 @@ interface NewNotificationDto {
   sentTime: string;
 }
 
+interface MessagePinnedDto {
+  messageId: string;
+  chatId: string;
+  pinnedById: string;
+  pinnedByUsername: string;
+  pinnedAt: string;
+}
+
+interface MessageUnpinnedDto {
+  messageId: string;
+  chatId: string;
+  unpinnedById: string;
+  unpinnedByUsername: string;
+}
+
+interface AddedToChatDto {
+  chatId: string;
+  chatName: string;
+  chatType: string;
+  chatAvatarUrl?: string;
+  addedAt: string;
+}
+
+interface NewConversationDto {
+  conversationId: string;
+  senderId: string;
+  senderUsername: string;
+  senderAvatarUrl?: string;
+  createdAt: string;
+}
+
+interface ConversationCreatedDto {
+  conversationId: string;
+  receiverId: string;
+  receiverUsername: string;
+  receiverAvatarUrl?: string;
+  createdAt: string;
+}
+
+// Permission events
+interface PermissionGrantedDto {
+  chatId: string;
+  userId: string;
+  permissionName: string;
+  timestamp: string;
+}
+
+interface PermissionRevokedDto {
+  chatId: string;
+  userId: string;
+  permissionName: string;
+  timestamp: string;
+}
+
+interface AllPermissionsRevokedDto {
+  chatId: string;
+  userId: string;
+  timestamp: string;
+}
+
+// Block events
+interface UserBlockedDto {
+  blockerId: string;
+  blockedUserId?: string;
+  timestamp: string;
+}
+
+interface UserUnblockedDto {
+  unblockerId: string;
+  unblockedUserId?: string;
+  timestamp: string;
+}
+
+// Chat deletion events
+interface ChatDeletedDto {
+  chatId: string;
+  timestamp: string;
+}
+
+interface RemovedFromChatDto {
+  chatId: string;
+  timestamp: string;
+}
+
+interface MessagesMarkedSeenDto {
+  chatId: string;
+  messageIds: string[];
+  seenByUserId: string;
+  seenAt: string;
+}
+
 export type SignalREventHandlers = {
   onUserOnline?: (status: UserStatusDto) => void;
   onUserOffline?: (status: UserStatusDto) => void;
@@ -67,6 +160,25 @@ export type SignalREventHandlers = {
   onUserStoppedTyping?: (data: TypingDto) => void;
   onNewNotification?: (notification: NewNotificationDto) => void;
   onNotificationsMarkedSeen?: (data: { notificationIds: string[] }) => void;
+  onMessagePinned?: (data: MessagePinnedDto) => void;
+  onMessageUnpinned?: (data: MessageUnpinnedDto) => void;
+  onAddedToChat?: (data: AddedToChatDto) => void;
+  onNewConversation?: (data: NewConversationDto) => void;
+  onConversationCreated?: (data: ConversationCreatedDto) => void;
+  // Permission events
+  onPermissionGranted?: (data: PermissionGrantedDto) => void;
+  onPermissionRevoked?: (data: PermissionRevokedDto) => void;
+  onAllPermissionsRevoked?: (data: AllPermissionsRevokedDto) => void;
+  // Block events
+  onUserBlockedYou?: (data: UserBlockedDto) => void;
+  onYouBlockedUser?: (data: UserBlockedDto) => void;
+  onUserUnblockedYou?: (data: UserUnblockedDto) => void;
+  onYouUnblockedUser?: (data: UserUnblockedDto) => void;
+  // Chat deletion events
+  onChatDeleted?: (data: ChatDeletedDto) => void;
+  onRemovedFromChat?: (data: RemovedFromChatDto) => void;
+  // Read receipt events
+  onMessagesMarkedSeen?: (data: MessagesMarkedSeenDto) => void;
   onError?: (error: { error: string }) => void;
 };
 
@@ -136,10 +248,12 @@ class SignalRService {
 
     // Presence events
     this.connection.on('UserOnline', (status: UserStatusDto) => {
+      console.log('[SignalR] UserOnline event received:', status);
       this.eventHandlers.onUserOnline?.(status);
     });
 
     this.connection.on('UserOffline', (status: UserStatusDto) => {
+      console.log('[SignalR] UserOffline event received:', status);
       this.eventHandlers.onUserOffline?.(status);
     });
 
@@ -158,10 +272,12 @@ class SignalRService {
 
     // Reaction events
     this.connection.on('ReactionAdded', (data: ReactionDto) => {
+      console.log('[SignalR] ReactionAdded event received:', data);
       this.eventHandlers.onReactionAdded?.(data);
     });
 
     this.connection.on('ReactionRemoved', (data: ReactionDto) => {
+      console.log('[SignalR] ReactionRemoved event received:', data);
       this.eventHandlers.onReactionRemoved?.(data);
     });
 
@@ -181,6 +297,85 @@ class SignalRService {
 
     this.connection.on('NotificationsMarkedSeen', (data: { notificationIds: string[] }) => {
       this.eventHandlers.onNotificationsMarkedSeen?.(data);
+    });
+
+    // Message pinning events
+    this.connection.on('MessagePinned', (data: MessagePinnedDto) => {
+      this.eventHandlers.onMessagePinned?.(data);
+    });
+
+    this.connection.on('MessageUnpinned', (data: MessageUnpinnedDto) => {
+      this.eventHandlers.onMessageUnpinned?.(data);
+    });
+
+    // Chat/Conversation events
+    this.connection.on('AddedToChat', (data: AddedToChatDto) => {
+      console.log('[SignalR] AddedToChat:', data);
+      this.eventHandlers.onAddedToChat?.(data);
+    });
+
+    this.connection.on('NewConversation', (data: NewConversationDto) => {
+      console.log('[SignalR] NewConversation:', data);
+      this.eventHandlers.onNewConversation?.(data);
+    });
+
+    this.connection.on('ConversationCreated', (data: ConversationCreatedDto) => {
+      console.log('[SignalR] ConversationCreated:', data);
+      this.eventHandlers.onConversationCreated?.(data);
+    });
+
+    // Permission events
+    this.connection.on('PermissionGranted', (data: PermissionGrantedDto) => {
+      console.log('[SignalR] PermissionGranted:', data);
+      this.eventHandlers.onPermissionGranted?.(data);
+    });
+
+    this.connection.on('PermissionRevoked', (data: PermissionRevokedDto) => {
+      console.log('[SignalR] PermissionRevoked:', data);
+      this.eventHandlers.onPermissionRevoked?.(data);
+    });
+
+    this.connection.on('AllPermissionsRevoked', (data: AllPermissionsRevokedDto) => {
+      console.log('[SignalR] AllPermissionsRevoked:', data);
+      this.eventHandlers.onAllPermissionsRevoked?.(data);
+    });
+
+    // Block events
+    this.connection.on('UserBlockedYou', (data: UserBlockedDto) => {
+      console.log('[SignalR] UserBlockedYou:', data);
+      this.eventHandlers.onUserBlockedYou?.(data);
+    });
+
+    this.connection.on('YouBlockedUser', (data: UserBlockedDto) => {
+      console.log('[SignalR] YouBlockedUser:', data);
+      this.eventHandlers.onYouBlockedUser?.(data);
+    });
+
+    this.connection.on('UserUnblockedYou', (data: UserUnblockedDto) => {
+      console.log('[SignalR] UserUnblockedYou:', data);
+      this.eventHandlers.onUserUnblockedYou?.(data);
+    });
+
+    this.connection.on('YouUnblockedUser', (data: UserUnblockedDto) => {
+      console.log('[SignalR] YouUnblockedUser:', data);
+      this.eventHandlers.onYouUnblockedUser?.(data);
+    });
+
+    // Chat deletion events
+    this.connection.on('ChatDeleted', (data: ChatDeletedDto) => {
+      console.log('[SignalR] ChatDeleted:', data);
+      this.eventHandlers.onChatDeleted?.(data);
+    });
+
+    this.connection.on('RemovedFromChat', (data: RemovedFromChatDto) => {
+      console.log('[SignalR] RemovedFromChat:', data);
+      this.eventHandlers.onRemovedFromChat?.(data);
+    });
+
+    // Read receipt events
+    this.connection.on('MessagesMarkedSeen', (data: MessagesMarkedSeenDto) => {
+      console.log('[SignalR] MessagesMarkedSeen:', data);
+      this.eventHandlers.onMessagesMarkedSeen?.(data);
     });
 
     // Error events
@@ -396,6 +591,17 @@ class SignalRService {
     } catch (error) {
       console.error('Error marking notifications as seen:', error);
       throw error;
+    }
+  }
+
+  // Read receipt operations
+  public async markMessagesAsSeen(chatId: string): Promise<void> {
+    if (!this.connection || !this.isConnected()) return;
+
+    try {
+      await this.connection.invoke('MarkMessagesAsSeen', chatId);
+    } catch (error) {
+      console.error('Error marking messages as seen:', error);
     }
   }
 }

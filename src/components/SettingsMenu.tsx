@@ -10,6 +10,7 @@ import {
   X,
   Users,
   Radio,
+  UserX,
 } from 'lucide-react';
 import styles from './SettingsMenu.module.css';
 
@@ -22,6 +23,7 @@ export interface SettingsMenuProps {
   onEditProfile: () => void;
   onShowNotifications: () => void;
   onShowAdminPanel: () => void;
+  onShowBlockedUsers: () => void;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onLogout: () => void;
@@ -36,6 +38,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
   onEditProfile,
   onShowNotifications,
   onShowAdminPanel,
+  onShowBlockedUsers,
   isDarkMode,
   onToggleDarkMode,
   onLogout,
@@ -56,6 +59,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
       items: [
         { icon: User, label: 'Edit Profile', onClick: onEditProfile, color: '#10b981' },
         { icon: Bell, label: 'Notifications', onClick: onShowNotifications, color: '#ef4444' },
+        { icon: UserX, label: 'Blocked Users', onClick: onShowBlockedUsers, color: '#dc2626' },
         { icon: Shield, label: 'Admin Panel', onClick: onShowAdminPanel, color: '#6366f1' },
       ],
     },

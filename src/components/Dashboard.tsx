@@ -12,9 +12,11 @@ import { useSignalR } from '../hooks/useSignalR';
 import { FileDropzone } from './common/FileDropzone';
 import { GroupProfileModal } from './modals/GroupProfileModal';
 import { UserProfileViewerModal } from './modals/UserProfileViewerModal';
+import { BlockedUsersModal } from './modals/BlockedUsersModal';
 import { Sidebar } from './Sidebar';
 import { ChatView } from './ChatView';
 import { SettingsMenu } from './SettingsMenu';
+import { RightPanel } from './RightPanel';
 import { getInitials, fixMinioUrl } from '../utils/helpers';
 import { toast } from './common/Toast';
 import { confirm } from './common/ConfirmModal';
@@ -769,7 +771,7 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const { chats, currentChat, isLoadingChats, messages, setMessages } = useChatStore();
+  const { chats, currentChat, isLoadingChats, messages, setMessages, onlineUsers } = useChatStore();
   const { theme, toggleTheme } = useThemeStore();
   const signalR = useSignalR();
   const [isLoading, setIsLoading] = useState(false);
@@ -781,6 +783,7 @@ const Dashboard: React.FC = () => {
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showCustomReactionModal, setShowCustomReactionModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string; type: 'user' | 'group' | 'channel'; avatar?: string }>>([]);
@@ -817,6 +820,13 @@ const Dashboard: React.FC = () => {
         return;
       }
 
+      // Skip for temporary chats
+      if (currentChat.id.startsWith('temp_dm_')) {
+        console.log('[Dashboard] Temporary chat, skipping message load');
+        setMessages([]);
+        return;
+      }
+
       console.log('[Dashboard] ========== LOADING MESSAGES FOR CHAT ==========');
       console.log('[Dashboard] Chat ID:', currentChat.id);
       console.log('[Dashboard] Chat Name:', currentChat.name);
@@ -834,6 +844,12 @@ const Dashboard: React.FC = () => {
 
         setMessages(chatData.messages || []);
         console.log('[Dashboard] Set messages state to:', chatData.messages?.length || 0, 'messages');
+
+        // Mark messages as seen when opening the chat
+        if (signalR.isConnected) {
+          console.log('[Dashboard] Marking messages as seen for chat:', currentChat.id);
+          signalR.markMessagesAsSeen(currentChat.id);
+        }
       } catch (error) {
         console.error('[Dashboard] Failed to load messages:', error);
         setMessages([]);
@@ -873,8 +889,40 @@ const Dashboard: React.FC = () => {
     joinLeaveChats();
   }, [currentChat, signalR.isConnected]);
 
-  const handleSelectChat = (chat: Chat) => {
+  const handleSelectChat = async (chat: Chat) => {
+    // First set the chat for immediate UI feedback
     useChatStore.getState().setCurrentChat(chat);
+
+    // Load full profile to get member data (needed for permission checks and block status)
+    // This applies to groups, channels, AND DMs (but NOT temporary DM chats with temp_dm_ prefix)
+    const isRealChat = !chat.id.startsWith('temp_dm_');
+    if (isRealChat && (chat.type === 'group' || chat.type === 'channel' || chat.type === 'dm')) {
+      try {
+        const fullProfile = await chatService.getChatProfile(chat.id);
+        console.log('[Dashboard] Loaded full profile for', chat.type, ':', fullProfile.id, 'members:', fullProfile.members?.length);
+        useChatStore.getState().setCurrentChat(fullProfile as Chat);
+
+        // Fetch presence states for members in this chat
+        if (fullProfile.members && fullProfile.members.length > 0) {
+          const memberIds = fullProfile.members
+            .map((m: any) => m.userId || m.id || m.user?.id)
+            .filter((id: string | undefined): id is string => !!id);
+
+          if (memberIds.length > 0) {
+            try {
+              const { signalRService } = await import('../services/signalr.service');
+              const presenceStates = await signalRService.getPresenceStates(memberIds);
+              console.log('[Dashboard] Fetched presence for chat members:', presenceStates);
+              useChatStore.getState().setInitialPresenceStates(presenceStates);
+            } catch (presenceError) {
+              console.error('[Dashboard] Failed to fetch presence states:', presenceError);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Dashboard] Failed to load chat profile:', error);
+      }
+    }
   };
 
   const handleLogout = async () => {
@@ -891,12 +939,13 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleSendChatMessage = async (content: string, file?: File) => {
+  const handleSendChatMessage = async (content: string, file?: File, replyId?: string) => {
     console.log('[Dashboard] handleSendChatMessage called', {
       content,
       file: file ? { name: file.name, size: file.size, type: file.type } : null,
       currentChatId: currentChat?.id,
-      userId: user?.id
+      userId: user?.id,
+      replyId
     });
 
     if (!currentChat || !currentChat.id || currentChat.id === 'search' || !user) {
@@ -924,6 +973,9 @@ const Dashboard: React.FC = () => {
 
         formData.append('content', content);
         formData.append('file', file);
+        if (replyId) {
+          formData.append('replyId', replyId);
+        }
 
         const messageService = await import('../services/message.service').then((m) => m.messageService);
         await messageService.sendMessage(formData);
@@ -945,7 +997,7 @@ const Dashboard: React.FC = () => {
           }
         }
 
-        await signalR.sendMessage(chatId, content, receiverId, null);
+        await signalR.sendMessage(chatId, content, receiverId, replyId || null);
       }
 
       console.log('[Dashboard] Message sent successfully');
@@ -954,25 +1006,54 @@ const Dashboard: React.FC = () => {
       if (currentChat.id.startsWith('temp_dm_')) {
         console.log('[Dashboard] Reloading chats after sending to temp chat');
         const chatStore = useChatStore.getState();
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await chatStore.loadChats();
-
-        // Find and switch to the newly created real DM
-        const freshChats = chatStore.chats;
         const recipientId = currentChat.id.replace('temp_dm_', '');
-        const realDm = freshChats.find((c: Chat) => {
-          if (c.type !== 'dm' || !c.members || c.members.length === 0) return false;
-          return c.members.some((m: any) =>
-            m.userId === recipientId ||
-            m.id === recipientId ||
-            m.user?.id === recipientId ||
-            m.user?.userId === recipientId
-          );
-        });
+
+        // Try to find the real DM with retries
+        let realDm: Chat | undefined;
+        const tempChatName = currentChat.name; // Store the recipient's username from temp chat
+
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await chatStore.loadChats();
+
+          const freshChats = useChatStore.getState().chats;
+          realDm = freshChats.find((c: Chat) => {
+            if (c.type !== 'dm') return false;
+
+            // Method 1: Try to match by members array (if available)
+            if (c.members && c.members.length > 0) {
+              return c.members.some((m: any) =>
+                m.userId === recipientId ||
+                m.id === recipientId ||
+                m.user?.id === recipientId ||
+                m.user?.userId === recipientId
+              );
+            }
+
+            // Method 2: Match by chat name (for DMs, name is the other user's username)
+            // This works when members array is not included in the response
+            if (tempChatName && c.name === tempChatName) {
+              return true;
+            }
+
+            return false;
+          });
+
+          if (realDm) {
+            console.log(`[Dashboard] Found newly created real DM on attempt ${attempt + 1}:`, realDm.id);
+            break;
+          }
+          console.log(`[Dashboard] Real DM not found on attempt ${attempt + 1}, retrying...`);
+        }
 
         if (realDm) {
-          console.log('[Dashboard] Found newly created real DM:', realDm.id);
           chatStore.setCurrentChat(realDm);
+          // Load messages for the newly created chat
+          const chatData = await chatService.getChat(realDm.id);
+          setMessages(chatData.messages || []);
+        } else {
+          console.error('[Dashboard] Failed to find newly created DM after retries');
+          toast.error('Message sent, but failed to load conversation. Please refresh.');
         }
       } else {
         // Regular chat - reload messages
@@ -1180,13 +1261,25 @@ const Dashboard: React.FC = () => {
     try {
       const userService = await import('../services/user.service').then((m) => m.userService);
       await userService.blockUser(userId);
+      // Update store immediately for instant UI feedback
+      useChatStore.getState().addBlockedUser(userId);
       toast.success('User blocked successfully');
-      setShowUserViewerModal(false);
-      setShowUserProfileViewer(false);
-      setSelectedUser(null);
     } catch (error) {
       console.error('Failed to block user:', error);
       toast.error(extractErrorMessage(error, 'Failed to block user'));
+    }
+  };
+
+  const handleUnblockUser = async (userId: string) => {
+    try {
+      const userService = await import('../services/user.service').then((m) => m.userService);
+      await userService.unblockUser(userId);
+      // Update store immediately for instant UI feedback
+      useChatStore.getState().removeBlockedUser(userId);
+      toast.success('User unblocked successfully');
+    } catch (error) {
+      console.error('Failed to unblock user:', error);
+      toast.error(extractErrorMessage(error, 'Failed to unblock user'));
     }
   };
 
@@ -1653,6 +1746,7 @@ const Dashboard: React.FC = () => {
         }}
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
+        onlineUsers={onlineUsers}
       />
       <SettingsMenu
         isOpen={showMenu}
@@ -1679,6 +1773,10 @@ const Dashboard: React.FC = () => {
         }}
         onShowAdminPanel={() => {
           setShowAdminPanel(true);
+          setShowMenu(false);
+        }}
+        onShowBlockedUsers={() => {
+          setShowBlockedUsersModal(true);
           setShowMenu(false);
         }}
         isDarkMode={isDarkMode}
@@ -1709,6 +1807,28 @@ const Dashboard: React.FC = () => {
         onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
         onOpenChatProfile={() => setShowGroupProfileModal(true)}
       />
+
+      {/* Right Panel for DM chats */}
+      {currentChat?.type === 'dm' && (
+        <RightPanel
+          currentChat={currentChat}
+          onReloadChat={async () => {
+            if (currentChat) {
+              const chatData = await chatService.getChatProfile(currentChat.id);
+              useChatStore.getState().setCurrentChat(chatData as any);
+            }
+          }}
+          onViewUserProfile={(userId) => {
+            setViewingUserId(userId);
+            setShowUserViewerModal(true);
+          }}
+          onConversationDeleted={() => {
+            // Clear current chat and reload chats
+            useChatStore.getState().setCurrentChat(null);
+            useChatStore.getState().loadChats();
+          }}
+        />
+      )}
 
       {/* Modals */}
       <CreateGroupModal
@@ -1751,6 +1871,7 @@ const Dashboard: React.FC = () => {
         isDarkMode={isDarkMode}
       />
       <AdminPanel isOpen={showAdminPanel} onClose={() => setShowAdminPanel(false)} isDarkMode={isDarkMode} />
+      <BlockedUsersModal isOpen={showBlockedUsersModal} onClose={() => setShowBlockedUsersModal(false)} isDarkMode={isDarkMode} />
       {/* User Profile from Search */}
       {showUserProfileViewer && selectedUser && (
         <UserProfileViewerModal
@@ -1763,6 +1884,7 @@ const Dashboard: React.FC = () => {
           userId={selectedUser.id}
           onSendMessage={handleSendMessage}
           onBlockUser={handleBlockUser}
+          onUnblockUser={handleUnblockUser}
         />
       )}
 
@@ -1802,6 +1924,7 @@ const Dashboard: React.FC = () => {
           userId={viewingUserId}
           onSendMessage={handleSendMessage}
           onBlockUser={handleBlockUser}
+          onUnblockUser={handleUnblockUser}
         />
       )}
     </div>

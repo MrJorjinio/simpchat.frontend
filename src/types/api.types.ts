@@ -50,6 +50,7 @@ export interface Chat {
   isOnline?: boolean;
   createdAt: string;
   updatedAt: string;
+  createdById?: string;
   // For GET /api/chats/{chatId} response
   messages?: BackendMessage[];
   participantsCount?: number;
@@ -69,17 +70,41 @@ export interface BackendMessage {
   replyId?: string;
   sentAt: string;
   isSeen: boolean;
+  seenAt?: string;
   isNotificated: boolean;
   notificationId: string;
   messageReactions: BackendReaction[];
   isCurrentUser: boolean;
+  // Pinning fields
+  isPinned?: boolean;
+  pinnedAt?: string;
+  pinnedById?: string;
+  pinnedByUsername?: string;
+}
+
+// Pinned message format from GET /api/messages/pinned/{chatId}
+export interface PinnedMessage {
+  messageId: string;
+  content?: string;
+  fileUrl?: string;
+  senderId: string;
+  senderUsername: string;
+  senderAvatarUrl?: string;
+  sentAt: string;
+  pinnedAt?: string;
+  pinnedById?: string;
+  pinnedByUsername?: string;
+  messageReactions: BackendReaction[];
 }
 
 export interface BackendReaction {
-  id: string;
-  emoji: string;
+  id?: string;
+  reactionType: string;  // "Like", "Love", "Laugh", "Sad", "Angry"
   userId: string;
   userName: string;
+  // Legacy support
+  emoji?: string;
+  type?: string;
 }
 
 export interface ChatMember {
@@ -97,9 +122,11 @@ export interface Message {
   senderId: string;
   sender: User;
   content: string;
+  fileUrl?: string;
   attachment?: Attachment;
   reactions: Reaction[];
   replyTo?: Message;
+  replyId?: string;
   edited: boolean;
   editedAt?: string;
   createdAt: string;
@@ -136,6 +163,15 @@ export interface Notification {
 }
 
 // Permission Types
+export type PermissionType =
+  | 'SendMessage'
+  | 'ManageMessages'
+  | 'AddUsers'
+  | 'ManageUsers'
+  | 'ManageChatInfo'
+  | 'ManageBans'
+  | 'PinMessages';
+
 export interface Permission {
   id: string;
   name: string;

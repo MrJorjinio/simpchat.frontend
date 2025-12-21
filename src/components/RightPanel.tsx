@@ -1,21 +1,27 @@
 import React, { useState, useEffect } from 'react';
+import { UserX, UserCheck, Trash2, Ban } from 'lucide-react';
 import type { Chat, ChatMember } from '../types/api.types';
 import { useAuthStore } from '../stores/authStore';
+import { useChatStore } from '../stores/chatStore';
 import { chatService } from '../services/chat.service';
+import { userService } from '../services/user.service';
 import { getInitials, fixMinioUrl } from '../utils/helpers';
-import { getBanErrorMessage } from '../utils/errorHandler';
-import { AddMemberModal, PermissionModal } from './ChatView';
+import { getBanErrorMessage, extractErrorMessage } from '../utils/errorHandler';
+import { AddMemberModal } from './ChatView';
+import { PermissionModal } from './modals/PermissionModal';
 import { toast } from './common/Toast';
 import { confirm } from './common/ConfirmModal';
+import { usePermissions } from '../hooks/usePermission';
 import styles from './Dashboard.module.css';
 
 export interface RightPanelProps {
   currentChat: Chat | null;
   onReloadChat: () => Promise<void>;
   onViewUserProfile: (userId: string) => void;
+  onConversationDeleted?: () => void;
 }
 
-export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadChat, onViewUserProfile }) => {
+export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadChat, onViewUserProfile, onConversationDeleted }) => {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<ChatMember | null>(null);
@@ -23,12 +29,52 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
   const [showMembersList, setShowMembersList] = useState(false);
   const [chatProfile, setChatProfile] = useState<any>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [isUserBlocked, setIsUserBlocked] = useState(false);
+  const [isBlockingUser, setIsBlockingUser] = useState(false);
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
   const { user: currentUser } = useAuthStore();
+
+  // Get permissions for current chat
+  const { canAddUsers, canManageChatInfo, canManageBans, canManageUsers } = usePermissions(currentChat?.id);
+
+  // Determine if current user is admin
+  const currentMember = chatProfile?.members?.find((m: any) => m.userId === currentUser?.id);
+  const isAdmin = currentMember?.role === 'admin';
 
   // Fetch chat profile to get full member/participant data
   useEffect(() => {
     const fetchChatProfile = async () => {
       if (!currentChat?.id) return;
+
+      // Handle temp_dm_ chats - these are new DMs that don't exist yet
+      if (currentChat.id.startsWith('temp_dm_')) {
+        const userId = currentChat.id.replace('temp_dm_', '');
+        console.log('[RightPanel] Temp DM chat, loading user profile for:', userId);
+        setIsLoadingProfile(true);
+        try {
+          const { userService } = await import('../services/user.service');
+          const userProfile = await userService.getUserProfile(userId);
+          // Create a mock chat profile from user data
+          setChatProfile({
+            id: currentChat.id,
+            name: userProfile.username,
+            type: 'dm',
+            avatar: userProfile.avatar,
+            members: [{
+              userId: userProfile.id,
+              user: userProfile,
+              role: 'member',
+            }],
+            participantsCount: 2,
+          });
+        } catch (error) {
+          console.error('[RightPanel] Failed to load user profile:', error);
+          setChatProfile(null);
+        } finally {
+          setIsLoadingProfile(false);
+        }
+        return;
+      }
 
       setIsLoadingProfile(true);
       try {
@@ -45,6 +91,155 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
 
     fetchChatProfile();
   }, [currentChat?.id]);
+
+  // Get block status from store
+  const { usersYouBlocked, addBlockedUser, removeBlockedUser } = useChatStore();
+
+  // Check block status for DM chats
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (!currentChat || currentChat.type !== 'dm' || !chatProfile?.members) {
+        setIsUserBlocked(false);
+        return;
+      }
+
+      const otherMember = chatProfile.members.find((m: any) => m.userId !== currentUser?.id);
+      if (!otherMember) {
+        setIsUserBlocked(false);
+        return;
+      }
+
+      // First check if already in store
+      if (usersYouBlocked.has(otherMember.userId)) {
+        setIsUserBlocked(true);
+        return;
+      }
+
+      try {
+        const blocked = await userService.getBlockStatus(otherMember.userId);
+        setIsUserBlocked(blocked);
+        // Sync to store if blocked
+        if (blocked) {
+          addBlockedUser(otherMember.userId);
+        }
+      } catch (error) {
+        console.error('[RightPanel] Failed to check block status:', error);
+        setIsUserBlocked(false);
+      }
+    };
+
+    checkBlockStatus();
+  }, [currentChat?.id, currentChat?.type, chatProfile?.members, currentUser?.id]);
+
+  // Subscribe to store changes
+  useEffect(() => {
+    if (!currentChat || currentChat.type !== 'dm' || !chatProfile?.members) {
+      return;
+    }
+
+    const otherMember = chatProfile.members.find((m: any) => m.userId !== currentUser?.id);
+    if (!otherMember) return;
+
+    const isBlockedInStore = usersYouBlocked.has(otherMember.userId);
+    if (isBlockedInStore !== isUserBlocked) {
+      setIsUserBlocked(isBlockedInStore);
+    }
+  }, [usersYouBlocked, currentChat?.id, chatProfile?.members, currentUser?.id]);
+
+  // Handle block/unblock user
+  const handleBlockUser = async () => {
+    if (!otherUser) return;
+
+    const action = isUserBlocked ? 'unblock' : 'block';
+    const confirmed = await confirm({
+      title: isUserBlocked ? 'Unblock User' : 'Block User',
+      message: isUserBlocked
+        ? `Are you sure you want to unblock ${otherUser.username}? They will be able to message you again.`
+        : `Are you sure you want to block ${otherUser.username}? They won't be able to send you messages.`,
+      confirmText: isUserBlocked ? 'Unblock' : 'Block',
+      cancelText: 'Cancel',
+      variant: isUserBlocked ? 'warning' : 'danger',
+    });
+
+    if (!confirmed) return;
+
+    setIsBlockingUser(true);
+    try {
+      if (isUserBlocked) {
+        await userService.unblockUser(otherUser.id);
+        // Update store immediately for instant UI feedback
+        removeBlockedUser(otherUser.id);
+        toast.success(`${otherUser.username} has been unblocked`);
+      } else {
+        await userService.blockUser(otherUser.id);
+        // Update store immediately for instant UI feedback
+        addBlockedUser(otherUser.id);
+        toast.success(`${otherUser.username} has been blocked`);
+      }
+      setIsUserBlocked(!isUserBlocked);
+    } catch (error) {
+      console.error(`Failed to ${action} user:`, error);
+      toast.error(extractErrorMessage(error, `Failed to ${action} user`));
+    } finally {
+      setIsBlockingUser(false);
+    }
+  };
+
+  // Handle delete conversation
+  const handleDeleteConversation = async () => {
+    if (!currentChat) return;
+
+    const confirmed = await confirm({
+      title: 'Delete Conversation',
+      message: `Are you sure you want to delete this conversation? All messages will be permanently deleted.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
+    setIsDeletingConversation(true);
+    try {
+      await chatService.deleteConversation(currentChat.id);
+      toast.success('Conversation deleted');
+      onConversationDeleted?.();
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      toast.error(extractErrorMessage(error, 'Failed to delete conversation'));
+    } finally {
+      setIsDeletingConversation(false);
+    }
+  };
+
+  // Handle delete + block
+  const handleDeleteAndBlock = async () => {
+    if (!currentChat || !otherUser) return;
+
+    const confirmed = await confirm({
+      title: 'Delete & Block',
+      message: `Are you sure you want to delete this conversation and block ${otherUser.username}? All messages will be deleted and they won't be able to message you.`,
+      confirmText: 'Delete & Block',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
+    setIsDeletingConversation(true);
+    try {
+      // First delete the conversation, then block the user
+      await chatService.deleteConversation(currentChat.id);
+      await userService.blockUser(otherUser.id);
+      toast.success(`Conversation deleted and ${otherUser.username} blocked`);
+      onConversationDeleted?.();
+    } catch (error) {
+      console.error('Failed to delete and block:', error);
+      toast.error(extractErrorMessage(error, 'Failed to delete and block'));
+    } finally {
+      setIsDeletingConversation(false);
+    }
+  };
 
   if (!currentChat) {
     return <div className={styles.rightPanel} />;
@@ -194,6 +389,127 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                 </div>
               )}
             </div>
+
+            {/* Actions Section for DM */}
+            {otherUser && (
+              <div className={styles.infoSection} style={{ marginTop: '16px' }}>
+                <div className={styles.infoLabel} style={{ color: 'var(--text)', marginBottom: '12px', fontWeight: 600 }}>Actions</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Block/Unblock User Button */}
+                  <button
+                    onClick={handleBlockUser}
+                    disabled={isBlockingUser || isDeletingConversation}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      backgroundColor: isUserBlocked ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      color: isUserBlocked ? '#10b981' : '#ef4444',
+                      border: `1px solid ${isUserBlocked ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                      borderRadius: '8px',
+                      cursor: (isBlockingUser || isDeletingConversation) ? 'not-allowed' : 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease',
+                      opacity: (isBlockingUser || isDeletingConversation) ? 0.6 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isBlockingUser && !isDeletingConversation) {
+                        e.currentTarget.style.backgroundColor = isUserBlocked ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = isUserBlocked ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+                    }}
+                  >
+                    {isUserBlocked ? (
+                      <>
+                        <UserCheck size={16} />
+                        {isBlockingUser ? 'Unblocking...' : 'Unblock User'}
+                      </>
+                    ) : (
+                      <>
+                        <Ban size={16} />
+                        {isBlockingUser ? 'Blocking...' : 'Block User'}
+                      </>
+                    )}
+                  </button>
+
+                  {/* Delete Conversation Button */}
+                  <button
+                    onClick={handleDeleteConversation}
+                    disabled={isDeletingConversation || isBlockingUser}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      color: '#ef4444',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '8px',
+                      cursor: (isDeletingConversation || isBlockingUser) ? 'not-allowed' : 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease',
+                      opacity: (isDeletingConversation || isBlockingUser) ? 0.6 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isDeletingConversation && !isBlockingUser) {
+                        e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    {isDeletingConversation ? 'Deleting...' : 'Delete Conversation'}
+                  </button>
+
+                  {/* Delete + Block Button */}
+                  {!isUserBlocked && (
+                    <button
+                      onClick={handleDeleteAndBlock}
+                      disabled={isDeletingConversation || isBlockingUser}
+                      style={{
+                        width: '100%',
+                        padding: '10px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        color: '#dc2626',
+                        border: '1px solid rgba(220, 38, 38, 0.3)',
+                        borderRadius: '8px',
+                        cursor: (isDeletingConversation || isBlockingUser) ? 'not-allowed' : 'pointer',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        transition: 'all 0.2s ease',
+                        opacity: (isDeletingConversation || isBlockingUser) ? 0.6 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isDeletingConversation && !isBlockingUser) {
+                          e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.2)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.1)';
+                      }}
+                    >
+                      <UserX size={16} />
+                      Delete & Block
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -224,52 +540,56 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
               </div>
             )}
 
-            {/* Privacy Toggle */}
-            <div className={styles.infoSection}>
-              <div className={styles.infoLabel} style={{ color: 'var(--text)' }}>Privacy</div>
-              <button
-                onClick={handleTogglePrivacy}
-                disabled={isTogglingPrivacy}
-                style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'var(--accent)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  width: '100%',
-                  marginTop: '4px',
-                }}
-              >
-                {isTogglingPrivacy ? 'Changing...' : `Current: ${currentChat.privacy || 'private'} (Click to toggle)`}
-              </button>
-            </div>
+            {/* Privacy Toggle - only show for admin or users with ManageChatInfo permission */}
+            {(isAdmin || canManageChatInfo) && (
+              <div className={styles.infoSection}>
+                <div className={styles.infoLabel} style={{ color: 'var(--text)' }}>Privacy</div>
+                <button
+                  onClick={handleTogglePrivacy}
+                  disabled={isTogglingPrivacy}
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--accent)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    width: '100%',
+                    marginTop: '4px',
+                  }}
+                >
+                  {isTogglingPrivacy ? 'Changing...' : `Current: ${currentChat.privacy || 'private'} (Click to toggle)`}
+                </button>
+              </div>
+            )}
 
-            {/* Add Member Button */}
-            <div className={styles.infoSection}>
-              <button
-                onClick={() => setShowAddMemberModal(true)}
-                style={{
-                  padding: '10px 14px',
-                  backgroundColor: 'var(--accent)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                ➕ Add Member
-              </button>
-            </div>
+            {/* Add Member Button - only show for admin or users with AddUsers permission */}
+            {(isAdmin || canAddUsers) && (
+              <div className={styles.infoSection}>
+                <button
+                  onClick={() => setShowAddMemberModal(true)}
+                  style={{
+                    padding: '10px 14px',
+                    backgroundColor: 'var(--accent)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  ➕ Add Member
+                </button>
+              </div>
+            )}
 
             {/* Members List with Toggle */}
             <div className={styles.infoSection}>
@@ -371,30 +691,34 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedMember(memberData as ChatMember);
-                                setShowPermissionModal(true);
-                              }}
-                              title="Manage Permissions"
-                              style={{
-                                padding: '6px 10px',
-                                backgroundColor: '#6366f1',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                transition: 'all 0.2s',
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#4f46e5')}
-                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#6366f1')}
-                            >
-                              🔐
-                            </button>
-                            {(memberData.role as string) !== 'admin' && (
+                            {/* Manage Permissions button - only for admin or users with ManageUsers permission */}
+                            {(isAdmin || canManageUsers) && (memberData.role as string) !== 'admin' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedMember(memberData as ChatMember);
+                                  setShowPermissionModal(true);
+                                }}
+                                title="Manage Permissions"
+                                style={{
+                                  padding: '6px 10px',
+                                  backgroundColor: '#6366f1',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  transition: 'all 0.2s',
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#4f46e5')}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#6366f1')}
+                              >
+                                🔐
+                              </button>
+                            )}
+                            {/* Ban User button - only for admin or users with ManageBans permission */}
+                            {(isAdmin || canManageBans) && (memberData.role as string) !== 'admin' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();

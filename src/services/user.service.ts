@@ -52,18 +52,30 @@ export const userService = {
   },
 
   blockUser: async (userId: string) => {
-    const response = await api.post<any>(`/users/block/${userId}`);
+    const response = await api.post<any>(`/users/blocks/${userId}`);
     return response.data?.data || response.data;
   },
 
   unblockUser: async (userId: string) => {
-    const response = await api.post<any>(`/users/unblock/${userId}`);
+    const response = await api.delete<any>(`/users/blocks/${userId}`);
     return response.data?.data || response.data;
   },
 
   getBlockedUsers: async () => {
-    const response = await api.get<any>('/users/blocked');
-    const rawUsers = response.data?.data || response.data;
-    return normalizeUsers(rawUsers);
+    const response = await api.get<any>('/users/blocks');
+    return response.data?.data || response.data || [];
+  },
+
+  getBlockStatus: async (userId: string) => {
+    const response = await api.get<any>(`/users/blocks/${userId}/status`);
+    return response.data?.isBlocked || false;
+  },
+
+  getMutualBlockStatus: async (userId: string): Promise<{ iBlockedThem: boolean; theyBlockedMe: boolean }> => {
+    const response = await api.get<any>(`/users/blocks/${userId}/mutual-status`);
+    return {
+      iBlockedThem: response.data?.iBlockedThem || false,
+      theyBlockedMe: response.data?.theyBlockedMe || false,
+    };
   },
 };

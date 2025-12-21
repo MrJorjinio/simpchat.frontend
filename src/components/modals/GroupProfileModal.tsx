@@ -1,25 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, Calendar, Crown, Shield, Edit2, Trash2, LogOut, Key, Settings, UserPlus, Ban } from 'lucide-react';
+import { Users, Calendar, Crown, Shield, Edit2, Trash2, LogOut, Key, Settings, UserPlus, Ban } from 'lucide-react';
 import type { Chat, ChatMember } from '../../types/api.types';
 import { chatService } from '../../services/chat.service';
 import { useChatStore } from '../../stores/chatStore';
 import { signalRService } from '../../services/signalr.service';
 import { OnlineStatusIndicator } from '../common/OnlineStatusIndicator';
+import { usePermissions } from '../../hooks/usePermission';
 import { formatLastSeen } from '../../utils/helpers';
 import { toast } from '../common/Toast';
 import { confirm } from '../common/ConfirmModal';
 import { isBanError, getBanErrorMessage, extractErrorMessage } from '../../utils/errorHandler';
-
-const AVAILABLE_PERMISSIONS = [
-  'SendMessage',
-  'ManageMessages',
-  'ManageReactions',
-  'ManageUsers',
-  'ManageChatInfo',
-  'ManageBans',
-  'PinMessages'
-] as const;
+import { PermissionModal } from './PermissionModal';
 
 interface GroupProfileModalProps {
   isOpen: boolean;
@@ -88,6 +80,9 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   const currentMember = profile?.members.find(m => m.userId === currentUserId);
   const isAdmin = currentMember?.role === 'admin';
 
+  // Get permissions for current user
+  const { canAddUsers, canManageChatInfo, canManageBans, canManageUsers } = usePermissions(chat?.id);
+
   useEffect(() => {
     if (isOpen && chat.id) {
       setIsBanned(false); // Reset banned state when modal opens
@@ -150,7 +145,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   };
 
   const loadBannedUsers = async () => {
-    if (!chat?.id || !isAdmin) return;
+    if (!chat?.id || (!isAdmin && !canManageBans)) return;
 
     setIsLoadingBannedUsers(true);
     try {
@@ -188,10 +183,10 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
 
   // Load banned users when showing the banned users section
   useEffect(() => {
-    if (showBannedUsers && isAdmin) {
+    if (showBannedUsers && (isAdmin || canManageBans)) {
       loadBannedUsers();
     }
-  }, [showBannedUsers, isAdmin]);
+  }, [showBannedUsers, isAdmin, canManageBans]);
 
   // Filter members based on search query
   useEffect(() => {
@@ -253,7 +248,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   };
 
   const handleAddMember = async (userId: string) => {
-    if (!chat || !isAdmin) return;
+    if (!chat || (!isAdmin && !canAddUsers)) return;
 
     try {
       if (chat.type === 'group') {
@@ -386,6 +381,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
           </h2>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               background: 'none',
               border: 'none',
@@ -396,6 +392,10 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
               justifyContent: 'center',
               borderRadius: '6px',
               transition: 'background-color 0.2s',
+              fontSize: '24px',
+              fontWeight: 300,
+              lineHeight: 1,
+              color: 'var(--text)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--background)';
@@ -404,7 +404,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
               e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
-            <X size={24} color="var(--text)" />
+            ×
           </button>
         </div>
 
@@ -598,31 +598,33 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
               )}
 
               {/* Admin Actions */}
-              {isAdmin && (
+              {(isAdmin || canAddUsers || canManageChatInfo) && (
                 <div style={{ marginBottom: '24px' }}>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => setShowAddMember(true)}
-                      style={{
-                        flex: 1,
-                        padding: '10px 16px',
-                        backgroundColor: '#51cf66',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <Users size={16} />
-                      Add Member
-                    </button>
-                    {onEditGroup && (
+                    {(isAdmin || canAddUsers) && (
+                      <button
+                        onClick={() => setShowAddMember(true)}
+                        style={{
+                          flex: 1,
+                          padding: '10px 16px',
+                          backgroundColor: '#51cf66',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <Users size={16} />
+                        Add Member
+                      </button>
+                    )}
+                    {(isAdmin || canManageChatInfo) && onEditGroup && (
                       <button
                         onClick={onEditGroup}
                         style={{
@@ -645,7 +647,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         Edit {chat.type === 'channel' ? 'Channel' : 'Group'}
                       </button>
                     )}
-                    {onDeleteGroup && (
+                    {isAdmin && onDeleteGroup && (
                       <button
                         onClick={handleDelete}
                         style={{
@@ -763,8 +765,8 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                 </div>
               )}
 
-              {/* Banned Users Button (for admins) */}
-              {isAdmin && (
+              {/* Banned Users Button (for admins or users with ManageBans permission) */}
+              {(isAdmin || canManageBans) && (
                 <div style={{ marginBottom: '24px' }}>
                   <button
                     onClick={() => setShowBannedUsers(true)}
@@ -864,6 +866,8 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         onKick={handleKick}
                         onBanMember={onBanMember}
                         chatId={chat.id}
+                        canManageBans={canManageBans}
+                        canManageUsers={canManageUsers}
                       />
                     ))}
                   </div>
@@ -895,6 +899,8 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         onKick={handleKick}
                         onBanMember={onBanMember}
                         chatId={chat.id}
+                        canManageBans={canManageBans}
+                        canManageUsers={canManageUsers}
                       />
                     ))}
                   </div>
@@ -926,6 +932,8 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         onKick={handleKick}
                         onBanMember={onBanMember}
                         chatId={chat.id}
+                        canManageBans={canManageBans}
+                        canManageUsers={canManageUsers}
                       />
                     ))}
                   </div>
@@ -987,15 +995,19 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
               <h3 style={{ margin: 0, color: 'var(--text)' }}>Add Member</h3>
               <button
                 onClick={() => setShowAddMember(false)}
+                aria-label="Close"
                 style={{
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
                   padding: '4px',
                   color: 'var(--text-muted)',
+                  fontSize: '22px',
+                  fontWeight: 300,
+                  lineHeight: 1,
                 }}
               >
-                <X size={20} />
+                ×
               </button>
             </div>
 
@@ -1140,15 +1152,19 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
               </h3>
               <button
                 onClick={() => setShowBannedUsers(false)}
+                aria-label="Close"
                 style={{
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
                   padding: '4px',
                   color: 'var(--text-muted)',
+                  fontSize: '22px',
+                  fontWeight: 300,
+                  lineHeight: 1,
                 }}
               >
-                <X size={20} />
+                ×
               </button>
             </div>
 
@@ -1249,6 +1265,8 @@ interface MemberItemProps {
   onKick?: (userId: string) => void;
   onBanMember?: (userId: string) => Promise<void>;
   chatId: string;
+  canManageBans?: boolean;
+  canManageUsers?: boolean;
 }
 
 const MemberItem: React.FC<MemberItemProps> = ({
@@ -1261,24 +1279,14 @@ const MemberItem: React.FC<MemberItemProps> = ({
   onKick,
   onBanMember,
   chatId,
+  canManageBans = false,
+  canManageUsers = false,
 }) => {
   const [showActions, setShowActions] = useState(false);
-  const [showPermissions, setShowPermissions] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const online = isUserOnline(member.userId);
   const lastSeen = getUserLastSeen(member.userId);
   const isCurrentUser = member.userId === currentUserId;
-
-  const handleAddPermission = async (permission: string) => {
-    try {
-      await chatService.addUserPermission(chatId, member.userId, permission);
-      toast.success(`Permission "${permission}" granted to ${member.user.username}`);
-      setShowPermissions(false);
-      setShowActions(false);
-    } catch (error: any) {
-      console.error('Failed to add permission:', error);
-      toast.error(error.response?.data?.message || 'Failed to grant permission');
-    }
-  };
 
   const getRoleBadge = () => {
     if (member.role === 'admin') {
@@ -1344,7 +1352,9 @@ const MemberItem: React.FC<MemberItemProps> = ({
   };
 
   // Determine if current user can manage this member
-  const canManage = isAdmin && !isCurrentUser && member.role !== 'admin';
+  // Admin can manage all non-admin members
+  // Users with specific permissions can perform those actions on non-admin members
+  const canManage = !isCurrentUser && member.role !== 'admin' && (isAdmin || canManageBans || canManageUsers);
 
   return (
     <div
@@ -1492,74 +1502,42 @@ const MemberItem: React.FC<MemberItemProps> = ({
                   </span>
                 </div>
 
-                {/* Permissions Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowPermissions(!showPermissions);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    color: 'var(--text)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    transition: 'background 0.1s ease',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <Key size={14} color="var(--text-muted)" />
-                  Manage Permissions
-                </button>
-
-                {/* Permissions List */}
-                {showPermissions && (
-                  <div
-                    style={{
-                      borderTop: '1px solid var(--border)',
-                      background: 'var(--background)',
+                {/* Permissions Button - only show for admins or users with ManageUsers permission */}
+                {(isAdmin || canManageUsers) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowActions(false);
+                      setShowPermissionModal(true);
                     }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      color: 'var(--text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'background 0.1s ease',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    {AVAILABLE_PERMISSIONS.map((permission) => (
-                      <button
-                        key={permission}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddPermission(permission);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px 8px 24px',
-                          background: 'transparent',
-                          border: 'none',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          color: 'var(--text-muted)',
-                          transition: 'background 0.1s ease',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        {permission}
-                      </button>
-                    ))}
-                  </div>
+                    <Key size={14} color="var(--text-muted)" />
+                    Manage Permissions
+                  </button>
                 )}
 
                 {/* Danger Actions */}
                 <div style={{
                   borderTop: '1px solid var(--border)',
                 }}>
-                  {onBanMember && (
+                  {(isAdmin || canManageBans) && onBanMember && (
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
@@ -1597,7 +1575,7 @@ const MemberItem: React.FC<MemberItemProps> = ({
                       Ban Member
                     </button>
                   )}
-                  {onKick && (
+                  {isAdmin && onKick && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1632,6 +1610,26 @@ const MemberItem: React.FC<MemberItemProps> = ({
           </AnimatePresence>
         </div>
       )}
+
+      {/* Permission Modal */}
+      <PermissionModal
+        isOpen={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        chatId={chatId}
+        member={{
+          id: member.id || member.userId || '',
+          userId: member.userId,
+          user: {
+            id: member.user.id || member.userId,
+            username: member.user.username,
+            avatarUrl: member.user.avatar,
+          },
+          role: (member.role as 'admin' | 'moderator' | 'member') || 'member',
+        }}
+        onPermissionsChanged={async () => {
+          // Permissions are changed, can reload if needed
+        }}
+      />
     </div>
   );
 };

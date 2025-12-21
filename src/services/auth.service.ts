@@ -35,6 +35,15 @@ export const authService = {
     return response.data;
   },
 
+  resetPasswordByEmail: async (email: string, password: string, otp: string) => {
+    const response = await api.put('/auth/reset-password-by-email', {
+      email,
+      password,
+      otp,
+    });
+    return response.data;
+  },
+
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');

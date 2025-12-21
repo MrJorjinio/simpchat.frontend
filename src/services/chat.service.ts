@@ -25,6 +25,18 @@ export const chatService = {
   getChatProfile: async (chatId: string) => {
     const response = await api.get<any>(`/chats/${chatId}/profile`);
     const rawChat = response.data?.data || response.data;
+    console.log('[ChatService] getChatProfile raw response:', {
+      chatId,
+      rawChat,
+      hasMembers: !!rawChat?.members,
+      membersLength: rawChat?.members?.length,
+      hasParticipants: !!rawChat?.participants,
+      participantsLength: rawChat?.participants?.length,
+      createdById: rawChat?.createdById,
+      ownerId: rawChat?.ownerId,
+      CreatedById: rawChat?.CreatedById,
+      OwnerId: rawChat?.OwnerId,
+    });
     return normalizeChat(rawChat);
   },
 
@@ -57,6 +69,13 @@ export const chatService = {
     const endpoint = chatType === 'group' ? '/groups' : '/channels';
     const response = await api.delete<any>(endpoint, {
       params: { chatId }
+    });
+    return response.data?.data || response.data;
+  },
+
+  deleteConversation: async (conversationId: string) => {
+    const response = await api.delete<any>('/conversations', {
+      params: { conversationId }
     });
     return response.data?.data || response.data;
   },

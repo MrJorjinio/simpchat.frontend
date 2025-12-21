@@ -89,3 +89,40 @@ export function getBanErrorMessage(error: any): string {
       return extractErrorMessage(error, 'An error occurred');
   }
 }
+
+/**
+ * Checks if the error is a user block-related error
+ */
+export function isUserBlockError(error: any): boolean {
+  const code = extractErrorCode(error);
+  return code === 'UserBan.UserBanned' || code === 'UserBan.CannotMessageBannedUser';
+}
+
+/**
+ * Checks if the current user is blocked by the other user
+ */
+export function isBlockedByUser(error: any): boolean {
+  const code = extractErrorCode(error);
+  return code === 'UserBan.UserBanned';
+}
+
+/**
+ * Gets a user-friendly message for user block errors
+ */
+export function getUserBlockErrorMessage(error: any): string {
+  const code = extractErrorCode(error);
+  switch (code) {
+    case 'UserBan.UserBanned':
+      return 'This user has blocked you. You cannot send them messages.';
+    case 'UserBan.CannotMessageBannedUser':
+      return 'You have blocked this user. Unblock them to send messages.';
+    case 'UserBan.AlreadyBanned':
+      return 'You have already blocked this user.';
+    case 'UserBan.CannotBanSelf':
+      return 'You cannot block yourself.';
+    case 'UserBan.NotFound':
+      return 'Block record not found.';
+    default:
+      return extractErrorMessage(error, 'An error occurred');
+  }
+}

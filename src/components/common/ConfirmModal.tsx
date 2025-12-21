@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -92,6 +92,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               </div>
               <button
                 onClick={onCancel}
+                aria-label="Close"
                 style={{
                   background: 'none',
                   border: 'none',
@@ -102,11 +103,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                   justifyContent: 'center',
                   color: '#94a3b8',
                   transition: 'color 0.15s ease',
+                  fontSize: '22px',
+                  fontWeight: 300,
+                  lineHeight: 1,
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.color = '#f1f5f9'}
                 onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
               >
-                <X size={20} strokeWidth={2.5} />
+                ×
               </button>
             </div>
 

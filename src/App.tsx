@@ -4,6 +4,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import Dashboard from './components/Dashboard';
 import { useAuthStore } from './stores/authStore';
 import { signalRService } from './services/signalr.service';
@@ -27,6 +28,10 @@ function AppRoutes() {
       <Route
         path="/register"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+      />
+      <Route
+        path="/forgot-password"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />}
       />
 
       {/* Protected Routes */}
@@ -115,6 +120,55 @@ function App() {
       onNewNotification: (notification) => {
         notificationStore.handleNewNotification(notification);
       },
+      onMessagePinned: (data) => {
+        chatStore.handleMessagePinned(data);
+      },
+      onMessageUnpinned: (data) => {
+        chatStore.handleMessageUnpinned(data);
+      },
+      onAddedToChat: (data) => {
+        chatStore.handleAddedToChat(data);
+      },
+      onNewConversation: (data) => {
+        chatStore.handleNewConversation(data);
+      },
+      onConversationCreated: (data) => {
+        chatStore.handleConversationCreated(data);
+      },
+      // Permission events
+      onPermissionGranted: (data) => {
+        chatStore.handlePermissionGranted(data);
+      },
+      onPermissionRevoked: (data) => {
+        chatStore.handlePermissionRevoked(data);
+      },
+      onAllPermissionsRevoked: (data) => {
+        chatStore.handleAllPermissionsRevoked(data);
+      },
+      // Block events
+      onUserBlockedYou: (data) => {
+        chatStore.handleUserBlockedYou(data);
+      },
+      onYouBlockedUser: (data) => {
+        chatStore.handleYouBlockedUser(data);
+      },
+      onUserUnblockedYou: (data) => {
+        chatStore.handleUserUnblockedYou(data);
+      },
+      onYouUnblockedUser: (data) => {
+        chatStore.handleYouUnblockedUser(data);
+      },
+      // Chat deletion events
+      onChatDeleted: (data) => {
+        chatStore.handleChatDeleted(data);
+      },
+      onRemovedFromChat: (data) => {
+        chatStore.handleRemovedFromChat(data);
+      },
+      // Read receipt events
+      onMessagesMarkedSeen: (data) => {
+        chatStore.handleMessagesMarkedSeen(data);
+      },
       onError: (error) => {
         console.error('[App] SignalR Error:', error);
       },
@@ -137,14 +191,27 @@ function App() {
         }
 
         // Collect all unique user IDs from all chats
-        const allUserIds = chatStore.chats
-          .flatMap(chat => chat.members?.map(m => m.userId) || [])
-          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        // Note: Chat list may not include member details, so we also extract from DM chat names
+        const allUserIds = new Set<string>();
 
-        if (allUserIds.length > 0) {
-          console.log('[App] Fetching presence states for', allUserIds.length, 'users:', allUserIds);
+        // Try to get user IDs from members array (when available)
+        chatStore.chats.forEach(chat => {
+          if (chat.members) {
+            chat.members.forEach(m => {
+              const userId = m.userId || m.id || m.user?.id;
+              if (userId) allUserIds.add(userId);
+            });
+          }
+        });
+
+        // For DM chats, we may need to fetch the profile to get the other user's ID
+        // This will be handled when the user clicks on a chat
+
+        const userIdArray = Array.from(allUserIds);
+        if (userIdArray.length > 0) {
+          console.log('[App] Fetching presence states for', userIdArray.length, 'users:', userIdArray);
           try {
-            const presenceStates = await signalRService.getPresenceStates(allUserIds);
+            const presenceStates = await signalRService.getPresenceStates(userIdArray);
             console.log('[App] Received presence states:', presenceStates);
             console.log('[App] Presence states type check:', typeof presenceStates, Object.keys(presenceStates).length, 'keys');
             chatStore.setInitialPresenceStates(presenceStates);
@@ -154,7 +221,7 @@ function App() {
             console.error('[App] Failed to fetch initial presence states:', error);
           }
         } else {
-          console.log('[App] No users to fetch presence for');
+          console.log('[App] No user IDs available from chat list - presence will be fetched when chats are opened');
         }
       } catch (error) {
         console.error('[App] Failed to start SignalR:', error);

@@ -13,8 +13,7 @@ export const useChat = () => {
   const sendMessage = useChatStore((state) => state.sendMessage);
   const editMessage = useChatStore((state) => state.editMessage);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
-  const addReaction = useChatStore((state) => state.addReaction);
-  const removeReaction = useChatStore((state) => state.removeReaction);
+  const toggleReaction = useChatStore((state) => state.toggleReaction);
   const clearError = useChatStore((state) => state.clearError);
 
   return {
@@ -30,8 +29,7 @@ export const useChat = () => {
     sendMessage,
     editMessage,
     deleteMessage,
-    addReaction,
-    removeReaction,
+    toggleReaction,
     clearError,
   };
 };

@@ -1,43 +1,34 @@
 import api from './api';
 
-// Reaction emoji to GUID mapping (cached after first load)
-let EMOJI_TO_REACTION_ID: Record<string, string> = {};
-let reactionsCached = false;
+// Reaction types supported by the backend
+export type ReactionType = 'Like' | 'Love' | 'Laugh' | 'Sad' | 'Angry';
 
-async function loadReactionMapping() {
-  if (reactionsCached) return;
+// Map emoji to reaction type
+export const EMOJI_TO_REACTION_TYPE: Record<string, ReactionType> = {
+  '👍': 'Like',
+  '❤️': 'Love',
+  '😂': 'Laugh',
+  '😢': 'Sad',
+  '😡': 'Angry',
+};
 
-  try {
-    const response = await api.get<any>('/reactions');
-    const reactions = response.data?.data || response.data;
+// Map reaction type to emoji (for display)
+export const REACTION_TYPE_TO_EMOJI: Record<ReactionType, string> = {
+  'Like': '👍',
+  'Love': '❤️',
+  'Laugh': '😂',
+  'Sad': '😢',
+  'Angry': '😡',
+};
 
-    // Build emoji to GUID mapping from backend reactions
-    reactions.forEach((reaction: any) => {
-      // Match emoji in reaction name (e.g., "👍 Thumbs Up" -> "👍")
-      const emojiMatch = reaction.name.match(/^(.)/);
-      if (emojiMatch) {
-        EMOJI_TO_REACTION_ID[emojiMatch[1]] = reaction.id;
-      }
-    });
-
-    reactionsCached = true;
-  } catch (error) {
-    console.warn('Failed to load reaction mapping:', error);
-    // Fall back to default mapping
-    EMOJI_TO_REACTION_ID = {
-      '👍': '00000000-0000-0000-0000-000000000001',
-      '❤️': '00000000-0000-0000-0000-000000000002',
-      '😂': '00000000-0000-0000-0000-000000000003',
-      '😢': '00000000-0000-0000-0000-000000000004',
-      '😡': '00000000-0000-0000-0000-000000000005',
-      '🎉': '00000000-0000-0000-0000-000000000006',
-    };
-  }
-}
-
-function getReactionId(emoji: string): string {
-  return EMOJI_TO_REACTION_ID[emoji] || emoji;
-}
+// All available reactions for the picker
+export const AVAILABLE_REACTIONS: { emoji: string; type: ReactionType; label: string }[] = [
+  { emoji: '👍', type: 'Like', label: 'Like' },
+  { emoji: '❤️', type: 'Love', label: 'Love' },
+  { emoji: '😂', type: 'Laugh', label: 'Laugh' },
+  { emoji: '😢', type: 'Sad', label: 'Sad' },
+  { emoji: '😡', type: 'Angry', label: 'Angry' },
+];
 
 export const messageService = {
   /**
@@ -92,40 +83,62 @@ export const messageService = {
   },
 
   /**
-   * Add a reaction to a message
+   * Toggle a reaction on a message (add if not exists, remove if exists)
    * @param messageId Message ID
-   * @param emoji Emoji to add
+   * @param reactionType Reaction type (Like, Love, Laugh, Sad, Angry)
+   * @returns true if added, false if removed
    */
-  addReaction: async (messageId: string, emoji: string) => {
-    // Load reaction mapping if not already cached
-    await loadReactionMapping();
+  toggleReaction: async (messageId: string, reactionType: ReactionType): Promise<boolean> => {
+    const response = await api.post<any>(`/messages/${messageId}/reactions/${reactionType}`);
+    return response.data?.data ?? response.data;
+  },
 
-    // Map emoji to backend reaction GUID
-    const reactionId = getReactionId(emoji);
-    const params = new URLSearchParams();
-    params.append('messageId', messageId);
-    params.append('reactionId', reactionId);
+  /**
+   * Toggle a reaction using emoji (maps to reaction type)
+   * @param messageId Message ID
+   * @param emoji Emoji to toggle
+   */
+  toggleReactionByEmoji: async (messageId: string, emoji: string): Promise<boolean> => {
+    const reactionType = EMOJI_TO_REACTION_TYPE[emoji];
+    if (!reactionType) {
+      throw new Error(`Unknown emoji: ${emoji}`);
+    }
+    return messageService.toggleReaction(messageId, reactionType);
+  },
 
-    const response = await api.post<any>(`/messages/reaction?${params.toString()}`);
+  /**
+   * Get reactions for a message
+   * @param messageId Message ID
+   */
+  getReactions: async (messageId: string) => {
+    const response = await api.get<any>(`/messages/${messageId}/reactions`);
+    return response.data?.data || response.data || [];
+  },
+
+  /**
+   * Pin a message
+   * @param messageId Message ID
+   */
+  pinMessage: async (messageId: string) => {
+    const response = await api.post<any>(`/messages/${messageId}/pin`);
     return response.data?.data || response.data;
   },
 
   /**
-   * Remove a reaction from a message
+   * Unpin a message
    * @param messageId Message ID
-   * @param emoji Emoji to remove
    */
-  removeReaction: async (messageId: string, emoji: string) => {
-    // Load reaction mapping if not already cached
-    await loadReactionMapping();
+  unpinMessage: async (messageId: string) => {
+    const response = await api.post<any>(`/messages/${messageId}/unpin`);
+    return response.data?.data || response.data;
+  },
 
-    // Map emoji to backend reaction GUID
-    const reactionId = getReactionId(emoji);
-    const params = new URLSearchParams();
-    params.append('messageId', messageId);
-    params.append('reactionId', reactionId);
-
-    const response = await api.delete<any>(`/messages/reaction?${params.toString()}`);
+  /**
+   * Get pinned messages for a chat
+   * @param chatId Chat ID
+   */
+  getPinnedMessages: async (chatId: string) => {
+    const response = await api.get<any>(`/messages/pinned/${chatId}`);
     return response.data?.data || response.data;
   },
 };

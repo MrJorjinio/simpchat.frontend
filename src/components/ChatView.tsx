@@ -6,8 +6,10 @@ import { chatService } from '../services/chat.service';
 import type { Chat, BackendMessage, User, ChatType, ChatMember } from '../types/api.types';
 import { Avatar } from './common/Avatar';
 import { OnlineStatusIndicator } from './common/OnlineStatusIndicator';
+import { PinnedMessagesPanel } from './PinnedMessagesPanel';
+import { usePermissions } from '../hooks/usePermission';
 import { getInitials, formatTime, fixMinioUrl } from '../utils/helpers';
-import { extractErrorMessage } from '../utils/errorHandler';
+import { extractErrorMessage, isUserBlockError, isBlockedByUser, getUserBlockErrorMessage } from '../utils/errorHandler';
 import { toast } from './common/Toast';
 import { confirm } from './common/ConfirmModal';
 import styles from './Dashboard.module.css';
@@ -16,7 +18,7 @@ export interface ChatViewProps {
   currentChat: Chat | null;
   messages: BackendMessage[];
   isLoadingMessages: boolean;
-  onSendMessage: (content: string, file?: File) => Promise<void>;
+  onSendMessage: (content: string, file?: File, replyId?: string) => Promise<void>;
   onOpenGroupCreate: () => void;
   onOpenChannelCreate: () => void;
   onOpenUserProfile: (userId: string) => void;
@@ -392,20 +394,125 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [editingContent, setEditingContent] = useState('');
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [showReactionPicker, setShowReactionPicker] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [replyToMessage, setReplyToMessage] = useState<BackendMessage | null>(null);
+  const [isUserBlocked, setIsUserBlocked] = useState(false); // Other user blocked me
+  const [didIBlockUser, setDidIBlockUser] = useState(false); // I blocked the other user
+  const [isCheckingBlockStatus, setIsCheckingBlockStatus] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const reactionPickerRef = useRef<HTMLDivElement>(null);
 
   // File attachment state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Chat store selectors for online status
-  const { isUserOnline, getUserLastSeen, getOnlineMembersCount } = useChatStore();
+  const { isUserOnline, getUserLastSeen, getOnlineMembersCount, loadPermissions } = useChatStore();
   const { user: currentUser } = useAuthStore();
+
+  // Permission checks
+  const { canSendMessage, canPinMessages, canManageMessages, isLoading: permissionsLoading } = usePermissions(currentChat?.id);
+
+  // Load permissions when chat changes (for groups/channels only)
+  useEffect(() => {
+    console.log('[ChatView] Permission useEffect triggered:', {
+      hasChatId: !!currentChat?.id,
+      chatType: currentChat?.type,
+      hasLoadPermissions: typeof loadPermissions === 'function',
+    });
+    if (currentChat && (currentChat.type === 'group' || currentChat.type === 'channel')) {
+      console.log('[ChatView] Calling loadPermissions for chat:', currentChat.id);
+      loadPermissions(currentChat.id);
+    }
+  }, [currentChat?.id, loadPermissions]);
+
+  // Check block status for DM chats
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      console.log('[ChatView] checkBlockStatus called:', {
+        hasCurrent: !!currentChat,
+        type: currentChat?.type,
+        hasUser: !!currentUser,
+        members: currentChat?.members?.map(m => ({ id: m.id, odUserId: m.userId }))
+      });
+
+      if (!currentChat || currentChat.type !== 'dm' || !currentUser) {
+        setIsUserBlocked(false);
+        setDidIBlockUser(false);
+        return;
+      }
+
+      // Try both userId and id since API may return either
+      const otherMember = currentChat.members?.find(m => {
+        const memberId = m.userId || m.id;
+        return memberId !== currentUser.id;
+      });
+      console.log('[ChatView] otherMember found:', otherMember, 'using userId:', otherMember?.userId, 'or id:', otherMember?.id);
+      if (!otherMember) {
+        setIsUserBlocked(false);
+        setDidIBlockUser(false);
+        return;
+      }
+
+      setIsCheckingBlockStatus(true);
+      try {
+        const { userService } = await import('../services/user.service');
+        // Check mutual block status - both directions
+        const otherUserId = otherMember.userId || otherMember.id;
+        console.log('[ChatView] Checking mutual block status for user:', otherUserId);
+        const { iBlockedThem, theyBlockedMe } = await userService.getMutualBlockStatus(otherUserId);
+        console.log('[ChatView] Block status result:', { iBlockedThem, theyBlockedMe });
+        setDidIBlockUser(iBlockedThem);
+        setIsUserBlocked(theyBlockedMe);
+      } catch (error) {
+        console.error('Failed to check block status:', error);
+      } finally {
+        setIsCheckingBlockStatus(false);
+      }
+    };
+
+    checkBlockStatus();
+  }, [currentChat?.id, currentChat?.type, currentChat?.members, currentUser?.id]);
+
+  // Subscribe to store's block status changes for real-time updates
+  const { usersYouBlocked, blockedByUsers } = useChatStore();
+
+  useEffect(() => {
+    if (!currentChat || currentChat.type !== 'dm' || !currentUser) {
+      return;
+    }
+
+    // Get the other user's ID
+    const otherMember = currentChat.members?.find(m => {
+      const memberId = m.userId || m.id;
+      return memberId !== currentUser.id;
+    });
+
+    if (!otherMember) return;
+
+    const otherUserId = otherMember.userId || otherMember.id;
+    if (!otherUserId) return;
+
+    // Check if block status changed in the store
+    const iBlockedInStore = usersYouBlocked.has(otherUserId);
+    const blockedByInStore = blockedByUsers.has(otherUserId);
+
+    console.log('[ChatView] Store block status changed:', {
+      otherUserId,
+      iBlockedInStore,
+      blockedByInStore,
+      currentDidIBlock: didIBlockUser,
+      currentIsBlocked: isUserBlocked
+    });
+
+    // Update local state if store has different values
+    if (iBlockedInStore !== didIBlockUser) {
+      setDidIBlockUser(iBlockedInStore);
+    }
+    if (blockedByInStore !== isUserBlocked) {
+      setIsUserBlocked(blockedByInStore);
+    }
+  }, [currentChat?.id, currentChat?.type, currentChat?.members, currentUser?.id, usersYouBlocked, blockedByUsers]);
 
   // Helper to get the other user's ID from a DM chat
   const getOtherUserId = (chat: Chat): string | null => {
@@ -540,9 +647,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     setSending(true);
     try {
-      // Pass both message text and file to onSendMessage
-      console.log('[ChatView] Calling onSendMessage with file:', selectedFile ? selectedFile.name : 'none');
-      await onSendMessage(messageText, selectedFile || undefined);
+      // Pass message text, file, and replyId to onSendMessage
+      console.log('[ChatView] Calling onSendMessage with file:', selectedFile ? selectedFile.name : 'none', 'replyId:', replyToMessage?.messageId);
+      await onSendMessage(messageText, selectedFile || undefined, replyToMessage?.messageId);
       console.log('[ChatView] onSendMessage completed');
       setMessageText('');
       setSelectedFile(null);
@@ -551,53 +658,79 @@ export const ChatView: React.FC<ChatViewProps> = ({
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ChatView] Failed to send message:', error);
+      // Handle block errors
+      if (isUserBlockError(error)) {
+        if (isBlockedByUser(error)) {
+          setIsUserBlocked(true);
+        } else {
+          setDidIBlockUser(true);
+        }
+        toast.error(getUserBlockErrorMessage(error));
+      } else {
+        toast.error(extractErrorMessage(error, 'Failed to send message'));
+      }
     } finally {
       setSending(false);
     }
   };
 
-  const handleAddReaction = async (messageId: string, emoji: string) => {
+  const handleToggleReaction = async (messageId: string, emoji: string) => {
     try {
-      const messageService = await import('../services/message.service').then((m) => m.messageService);
-      await messageService.addReaction(messageId, emoji);
-      setShowReactionPicker(null);
-      // Reload messages
+      const { messageService } = await import('../services/message.service');
+      await messageService.toggleReactionByEmoji(messageId, emoji);
+      // Reload messages to reflect the change
       const chatStore = useChatStore.getState();
       if (currentChat) {
         await chatStore.loadMessages(currentChat.id);
       }
     } catch (error) {
-      console.error('Failed to add reaction:', error);
+      console.error('Failed to toggle reaction:', error);
+      toast.error('Failed to add reaction');
     }
   };
 
-  const handleRemoveReaction = async (messageId: string, emoji: string) => {
-    try {
-      const messageService = await import('../services/message.service').then((m) => m.messageService);
-      await messageService.removeReaction(messageId, emoji);
-      // Reload messages
-      const chatStore = useChatStore.getState();
-      if (currentChat) {
-        await chatStore.loadMessages(currentChat.id);
-      }
-    } catch (error) {
-      console.error('Failed to remove reaction:', error);
-    }
-  };
-
-  const handleContextMenu = (e: React.MouseEvent, messageId: string, isOwnMessage: boolean) => {
+  const handleContextMenu = (e: React.MouseEvent, messageId: string, _isOwnMessage: boolean) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isOwnMessage) {
-      setContextMenu({ messageId, x: e.clientX, y: e.clientY });
+    // Show context menu for all messages (own messages get edit/delete, all get pin/unpin)
+    setContextMenu({ messageId, x: e.clientX, y: e.clientY });
+  };
+
+  // canPinMessages is now provided by usePermissions hook
+
+  const handlePinMessage = async (messageId: string) => {
+    try {
+      const chatStore = useChatStore.getState();
+      await chatStore.pinMessage(messageId);
+      setContextMenu(null);
+      toast.success('Message pinned');
+    } catch (error) {
+      console.error('Failed to pin message:', error);
+      toast.error(extractErrorMessage(error, 'Failed to pin message'));
     }
   };
 
-  const handleShowReactionPicker = (e: React.MouseEvent, messageId: string) => {
-    e.stopPropagation();
-    setShowReactionPicker({ messageId, x: e.clientX, y: e.clientY });
+  const handleUnpinMessage = async (messageId: string) => {
+    try {
+      const chatStore = useChatStore.getState();
+      await chatStore.unpinMessage(messageId);
+      setContextMenu(null);
+      toast.success('Message unpinned');
+    } catch (error) {
+      console.error('Failed to unpin message:', error);
+      toast.error(extractErrorMessage(error, 'Failed to unpin message'));
+    }
+  };
+
+  const handleJumpToMessage = (messageId: string) => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      messageElement.classList.add('message-highlight');
+      setTimeout(() => messageElement.classList.remove('message-highlight'), 2000);
+    }
   };
 
   const handleEditMessage = (messageId: string) => {
@@ -659,23 +792,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
-  // Close context menu and reaction picker when clicking outside
+  // Close context menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
         setContextMenu(null);
       }
-      if (reactionPickerRef.current && !reactionPickerRef.current.contains(e.target as Node)) {
-        setShowReactionPicker(null);
-      }
     };
-    if (contextMenu || showReactionPicker) {
+    if (contextMenu) {
       document.addEventListener('click', handleClickOutside);
     }
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [contextMenu, showReactionPicker]);
+  }, [contextMenu]);
 
   if (!currentChat) {
     return (
@@ -845,6 +975,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       </div>
 
+      {/* Pinned Messages Panel */}
+      <PinnedMessagesPanel
+        chatId={currentChat.id}
+        onJumpToMessage={handleJumpToMessage}
+        canUnpin={canPinMessages}
+      />
+
       {/* Messages Container */}
       <div
         className={styles.messagesContainer}
@@ -858,7 +995,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         {messages.map((msg) => (
           <div
             key={msg.messageId}
-            className={`${styles.messageGroup} ${msg.isCurrentUser ? styles.ownMessage : styles.otherMessage} ${msg.isCurrentUser ? 'message-self-enter' : 'message-other-enter'}`}
+            data-message-id={msg.messageId}
+            className={`${styles.messageGroup} ${msg.isCurrentUser ? styles.ownMessage : styles.otherMessage} ${msg.isCurrentUser ? 'message-self-enter' : 'message-other-enter'} ${msg.isPinned ? 'message-pinned' : ''}`}
             style={{ position: 'relative' }}
           >
             {!msg.isCurrentUser && (
@@ -933,21 +1071,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 style={{ position: 'relative' }}
               >
                 {!msg.isCurrentUser && <div className={styles.senderName}>{msg.senderUsername}</div>}
-                {msg.replyId && (
-                  <div
-                    style={{
-                      padding: '6px 10px',
-                      backgroundColor: 'rgba(0,0,0,0.1)',
-                      borderLeft: '3px solid var(--accent)',
-                      borderRadius: '4px',
-                      marginBottom: '8px',
-                      fontSize: '12px',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    ↩️ Reply to message
-                  </div>
-                )}
+                {msg.replyId && (() => {
+                  // Find the original message being replied to
+                  const replyToMsg = messages.find(m => m.messageId === msg.replyId);
+                  const replyContent = replyToMsg
+                    ? (replyToMsg.content?.substring(0, 40) || (replyToMsg.fileUrl ? '📎 File' : '...'))
+                    : 'Message deleted';
+                  return (
+                    <div
+                      onClick={() => replyToMsg && handleJumpToMessage(msg.replyId!)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 8px',
+                        marginBottom: '4px',
+                        fontSize: '11px',
+                        color: 'var(--text-secondary)',
+                        backgroundColor: msg.isCurrentUser ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.08)',
+                        borderRadius: '4px',
+                        cursor: replyToMsg ? 'pointer' : 'default',
+                        borderLeft: '2px solid var(--accent)',
+                      }}
+                    >
+                      <span style={{ opacity: 0.7 }}>↩</span>
+                      <span style={{ fontWeight: 600, color: 'var(--accent)', fontSize: '10px' }}>
+                        {replyToMsg?.senderUsername || 'Unknown'}:
+                      </span>
+                      <span style={{ opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {replyContent}{replyToMsg?.content && replyToMsg.content.length > 40 ? '...' : ''}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className={styles.messageContent}>{msg.content}</div>
                 {msg.fileUrl && (() => {
                   const fileUrl = fixMinioUrl(msg.fileUrl) || msg.fileUrl;
@@ -1027,35 +1183,65 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   );
                 })()}
-                {msg.messageReactions && msg.messageReactions.length > 0 && (
-                  <div className={styles.reactionsContainer} style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
-                    {msg.messageReactions.map((reaction, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleRemoveReaction(msg.messageId, reaction.emoji)}
-                        title={`${reaction.userName} reacted with ${reaction.emoji}`}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                  {/* Timestamp and seen indicator */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <span className={styles.messageTime}>{formatTime(msg.sentAt)}</span>
+                    {/* Show seen status on all messages */}
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        color: msg.isSeen ? '#51cf66' : 'rgba(255,255,255,0.5)',
+                        fontWeight: 500,
+                      }}
+                      title={msg.isSeen ? 'Seen' : 'Sent'}
+                    >
+                      {msg.isSeen ? '✓✓' : '✓'}
+                    </span>
+                  </div>
+                  {/* Compact reactions badge */}
+                  {msg.messageReactions && msg.messageReactions.length > 0 && (() => {
+                    const reactionCounts = msg.messageReactions.reduce((acc: Record<string, { count: number; users: string[] }>, r: any) => {
+                      const type = r.reactionType || r.type || 'Like';
+                      if (!acc[type]) acc[type] = { count: 0, users: [] };
+                      acc[type].count++;
+                      acc[type].users.push(r.userName || r.userId);
+                      return acc;
+                    }, {});
+                    const typeToEmoji: Record<string, string> = {
+                      'Like': '👍', 'Love': '❤️', 'Laugh': '😂', 'Sad': '😢', 'Angry': '😡'
+                    };
+                    return (
+                      <div
                         style={{
-                          padding: '4px 8px',
-                          backgroundColor: 'var(--background)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '12px',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '2px',
+                          padding: '2px 6px',
+                          backgroundColor: 'rgba(0,0,0,0.15)',
+                          borderRadius: '12px',
+                          fontSize: '12px',
                         }}
                       >
-                        {reaction.emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                  <div className={styles.messageTime}>{formatTime(msg.sentAt)}</div>
+                        {Object.entries(reactionCounts).map(([type, data]: [string, any]) => (
+                          <span
+                            key={type}
+                            onClick={() => handleToggleReaction(msg.messageId, typeToEmoji[type] || '👍')}
+                            title={data.users.join(', ')}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {typeToEmoji[type]}{data.count > 1 && <span style={{ fontSize: '10px', marginLeft: '1px' }}>{data.count}</span>}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <button
-                    onClick={(e) => handleShowReactionPicker(e, msg.messageId)}
-                    title="Add reaction"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setContextMenu({ messageId: msg.messageId, x: e.clientX, y: e.clientY });
+                    }}
+                    title="Actions"
                     style={{
                       padding: '2px 6px',
                       backgroundColor: 'transparent',
@@ -1069,7 +1255,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
                     onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
                   >
-                    😊+
+                    ⋯
                   </button>
                   {!msg.isCurrentUser && (
                     <button
@@ -1094,142 +1280,139 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </div>
               </div>
             )}
-            {/* Reaction Picker */}
-            {showReactionPicker?.messageId === msg.messageId && (
-              <div
-                ref={reactionPickerRef}
-                style={{
-                  position: 'fixed',
-                  top: `${showReactionPicker.y}px`,
-                  left: `${showReactionPicker.x}px`,
-                  backgroundColor: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                  zIndex: 1000,
-                  padding: '8px',
-                  display: 'flex',
-                  gap: '4px',
-                }}
-              >
-                {['👍', '❤️', '😂', '😮', '😢', '🎉', '🔥', '👏'].map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => handleAddReaction(msg.messageId, emoji)}
-                    style={{
-                      padding: '8px',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '20px',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--background)';
-                      e.currentTarget.style.transform = 'scale(1.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.transform = 'scale(1)';
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            )}
-            {/* Context Menu - Beautiful Glowing Design */}
-            {contextMenu?.messageId === msg.messageId && msg.isCurrentUser && (
+            {/* Context Menu with Reactions */}
+            {contextMenu?.messageId === msg.messageId && (
               <div
                 ref={contextMenuRef}
                 style={{
                   position: 'fixed',
-                  top: `${contextMenu.y}px`,
-                  left: `${contextMenu.x}px`,
-                  background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.95))',
-                  border: '2px solid rgba(99, 102, 241, 0.3)',
-                  borderRadius: '16px',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(99, 102, 241, 0.2)',
+                  top: Math.min(Math.max(contextMenu.y - 20, 10), window.innerHeight - 180),
+                  left: Math.min(Math.max(contextMenu.x - 70, 10), window.innerWidth - 150),
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
                   zIndex: 1000,
-                  minWidth: '180px',
-                  overflow: 'hidden',
-                  backdropFilter: 'blur(20px)',
+                  width: '140px',
+                  padding: '4px',
                 }}
               >
-                <button
-                  onClick={() => handleEditMessage(msg.messageId)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: '#f1f5f9',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    transition: 'all 0.2s ease',
-                    borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <span style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                  }}>✏️</span>
-                  Edit Message
-                </button>
-                <button
-                  onClick={() => handleDeleteMessage(msg.messageId)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: '#f87171',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <span style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                  }}>🗑️</span>
-                  Delete Message
-                </button>
+                {/* Compact reactions row */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-around',
+                  padding: '4px 2px',
+                  borderBottom: '1px solid var(--border)',
+                  marginBottom: '2px',
+                }}>
+                  {['👍', '❤️', '😂', '😢', '😡'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => {
+                        handleToggleReaction(msg.messageId, emoji);
+                        setContextMenu(null);
+                      }}
+                      style={{
+                        padding: '2px',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        lineHeight: 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                {/* Pin/Unpin option */}
+                {canPinMessages && (
+                  <button
+                    onClick={() => msg.isPinned ? handleUnpinMessage(msg.messageId) : handlePinMessage(msg.messageId)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--text)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{ fontSize: '14px' }}>📌</span>
+                    {msg.isPinned ? 'Unpin' : 'Pin'}
+                  </button>
+                )}
+                {/* Edit option */}
+                {(msg.isCurrentUser || canManageMessages) && (
+                  <button
+                    onClick={() => handleEditMessage(msg.messageId)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--text)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{ fontSize: '14px' }}>✏️</span>
+                    Edit
+                  </button>
+                )}
+                {/* Delete option */}
+                {(msg.isCurrentUser || canManageMessages) && (
+                  <button
+                    onClick={() => handleDeleteMessage(msg.messageId)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#ef4444',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{ fontSize: '14px' }}>🗑️</span>
+                    Delete
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1275,6 +1458,88 @@ export const ChatView: React.FC<ChatViewProps> = ({
       )}
 
       {/* Message Input */}
+      {/* Show loading state while checking block status for DM chats */}
+      {currentChat.type === 'dm' && isCheckingBlockStatus ? (
+        <div
+          style={{
+            padding: '16px 20px',
+            textAlign: 'center',
+            color: '#94a3b8',
+            backgroundColor: 'rgba(30, 41, 59, 0.5)',
+            borderTop: '1px solid rgba(99, 102, 241, 0.2)',
+            fontSize: '14px',
+          }}
+        >
+          Loading...
+        </div>
+      ) : currentChat.type === 'dm' && isUserBlocked ? (
+        <div
+          style={{
+            padding: '16px 20px',
+            textAlign: 'center',
+            color: '#f87171',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderTop: '1px solid rgba(239, 68, 68, 0.3)',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>🚫</span>
+          This user has blocked you. You cannot send them messages.
+        </div>
+      ) : currentChat.type === 'dm' && didIBlockUser ? (
+        <div
+          style={{
+            padding: '16px 20px',
+            textAlign: 'center',
+            color: '#f87171',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderTop: '1px solid rgba(239, 68, 68, 0.3)',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>🚫</span>
+          You have blocked this user. Unblock them to send messages.
+        </div>
+      ) : currentChat.type !== 'dm' && permissionsLoading ? (
+        <div
+          style={{
+            padding: '16px 20px',
+            textAlign: 'center',
+            color: '#94a3b8',
+            backgroundColor: 'rgba(30, 41, 59, 0.5)',
+            borderTop: '1px solid rgba(99, 102, 241, 0.2)',
+            fontSize: '14px',
+          }}
+        >
+          Loading...
+        </div>
+      ) : !canSendMessage && currentChat.type !== 'dm' ? (
+        <div
+          style={{
+            padding: '16px 20px',
+            textAlign: 'center',
+            color: '#94a3b8',
+            backgroundColor: 'rgba(30, 41, 59, 0.8)',
+            borderTop: '1px solid rgba(99, 102, 241, 0.2)',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>🔒</span>
+          You don't have permission to send messages in this chat
+        </div>
+      ) : (
       <div className={styles.messageInput}>
         {replyToMessage && (
           <div
@@ -1429,6 +1694,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {isSending ? '...' : '→'}
         </button>
       </div>
+      )}
     </div>
   );
 };

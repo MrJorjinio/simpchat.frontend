@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, X, Check, AlertCircle } from 'lucide-react';
+import { Upload, Check, AlertCircle } from 'lucide-react';
 import { validateImageFile, createImagePreview, formatFileSize } from '../../utils/fileValidation';
 
 interface FileDropzoneProps {
@@ -135,6 +135,7 @@ export const FileDropzone = ({
             {!disabled && (
               <button
                 onClick={handleRemove}
+                aria-label="Remove image"
                 style={{
                   position: 'absolute',
                   top: '8px',
@@ -150,6 +151,9 @@ export const FileDropzone = ({
                   justifyContent: 'center',
                   cursor: 'pointer',
                   transition: 'background 0.2s ease',
+                  fontSize: '20px',
+                  fontWeight: 300,
+                  lineHeight: 1,
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'rgba(0, 0, 0, 0.9)';
@@ -158,7 +162,7 @@ export const FileDropzone = ({
                   e.currentTarget.style.background = 'rgba(0, 0, 0, 0.7)';
                 }}
               >
-                <X size={18} />
+                ×
               </button>
             )}
             <div

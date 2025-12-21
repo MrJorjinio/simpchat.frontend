@@ -327,3 +327,32 @@
 .select-all {
   user-select: all;
 }
+
+/* ==================== MESSAGE UTILITIES ==================== */
+
+@keyframes highlightPulse {
+  0%, 100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(99, 102, 241, 0.2);
+  }
+}
+
+.message-highlight {
+  animation: highlightPulse 0.6s ease-in-out 3;
+  border-radius: 12px;
+}
+
+.message-pinned {
+  position: relative;
+}
+
+.message-pinned::before {
+  content: '📌';
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  font-size: 12px;
+  z-index: 1;
+}
