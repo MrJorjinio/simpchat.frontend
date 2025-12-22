@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthStore } from '../../stores/authStore';
 import { authService } from '../../services/auth.service';
-import { Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, MessageSquare } from 'lucide-react';
 import { isValidEmail } from '../../utils/helpers';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import styles from '../../styles/Auth.module.css';
@@ -120,7 +120,7 @@ export const RegisterForm = () => {
           {/* Header */}
           <div className={styles.header}>
             <div className={styles.iconWrapper}>
-              <span>💬</span>
+              <MessageSquare size={32} color="#ffffff" />
             </div>
             <h1 className={styles.title}>Create Account</h1>
             <p className={styles.subtitle}>Join Simpchat today</p>

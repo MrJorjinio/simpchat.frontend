@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthStore } from '../../stores/authStore';
-import { Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ArrowRight, MessageSquare } from 'lucide-react';
 import styles from '../../styles/Auth.module.css';
 
 export const LoginForm = () => {
@@ -49,7 +49,7 @@ export const LoginForm = () => {
         {/* Header */}
         <div className={styles.header}>
           <div className={styles.iconWrapper}>
-            <span>💬</span>
+            <MessageSquare size={32} color="#ffffff" />
           </div>
           <h1 className={styles.title}>Sign In</h1>
           <p className={styles.subtitle}>Welcome back to Simpchat</p>

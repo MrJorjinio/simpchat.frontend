@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../../services/auth.service';
-import { Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, KeyRound } from 'lucide-react';
 import { isValidEmail } from '../../utils/helpers';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import styles from '../../styles/Auth.module.css';
@@ -100,7 +100,7 @@ export const ForgotPasswordForm = () => {
           {/* Header */}
           <div className={styles.header}>
             <div className={styles.iconWrapper}>
-              <span>🔑</span>
+              <KeyRound size={32} color="#ffffff" />
             </div>
             <h1 className={styles.title}>Forgot Password</h1>
             <p className={styles.subtitle}>Enter your email to reset your password</p>
