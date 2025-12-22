@@ -594,15 +594,41 @@ class SignalRService {
     }
   }
 
-  // Read receipt operations
+  // Read receipt operations - debounced to avoid duplicate calls
+  private markSeenDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
   public async markMessagesAsSeen(chatId: string): Promise<void> {
     if (!this.connection || !this.isConnected()) return;
 
-    try {
-      await this.connection.invoke('MarkMessagesAsSeen', chatId);
-    } catch (error) {
-      console.error('Error marking messages as seen:', error);
+    // Debounce calls for the same chat to avoid duplicate requests
+    const existingTimer = this.markSeenDebounceTimers.get(chatId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(async () => {
+        this.markSeenDebounceTimers.delete(chatId);
+
+        // Double-check connection before invoking
+        if (!this.connection || !this.isConnected()) {
+          resolve();
+          return;
+        }
+
+        try {
+          await this.connection.invoke('MarkMessagesAsSeen', chatId);
+        } catch (error: any) {
+          // Silently ignore connection closure errors (expected during navigation/unmount)
+          if (!error?.message?.includes('connection being closed')) {
+            console.error('Error marking messages as seen:', error);
+          }
+        }
+        resolve();
+      }, 300); // 300ms debounce
+
+      this.markSeenDebounceTimers.set(chatId, timer);
+    });
   }
 }
 

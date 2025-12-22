@@ -89,6 +89,9 @@ interface ChatState {
   // Read receipt real-time handlers
   handleMessagesMarkedSeen: (data: { chatId: string; messageIds: string[]; seenByUserId: string; seenAt: string }) => void;
 
+  // Unread count management
+  resetUnreadCount: (chatId: string) => void;
+
   // Block status tracking
   blockedByUsers: Set<string>; // userIds who blocked the current user
   usersYouBlocked: Set<string>; // userIds that the current user blocked
@@ -879,7 +882,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.log('[ChatStore] Messages marked as seen:', data);
     const state = get();
 
-    // Only update messages if this is for the current chat
+    // Update messages if this is for the current chat
     if (state.currentChat && data.chatId === state.currentChat.id) {
       set({
         messages: state.messages.map(m =>
@@ -889,6 +892,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ),
       });
     }
+
+    // Update unreadCount for the chat in the chats list
+    // When messages are marked as seen, reduce the unread count
+    const currentUserId = useAuthStore.getState().user?.id;
+    if (currentUserId && data.seenByUserId === currentUserId) {
+      set((state) => ({
+        chats: state.chats.map((chat) =>
+          chat.id === data.chatId
+            ? { ...chat, unreadCount: Math.max(0, (chat.unreadCount || 0) - data.messageIds.length) }
+            : chat
+        ),
+        // Also update currentChat if it's the one being marked
+        currentChat:
+          state.currentChat?.id === data.chatId
+            ? { ...state.currentChat, unreadCount: Math.max(0, (state.currentChat.unreadCount || 0) - data.messageIds.length) }
+            : state.currentChat,
+      }));
+    }
+  },
+
+  // Reset unread count for a chat (called when opening a chat)
+  resetUnreadCount: (chatId: string) => {
+    console.log('[ChatStore] Resetting unread count for chat:', chatId);
+    set((state) => ({
+      chats: state.chats.map((chat) =>
+        chat.id === chatId ? { ...chat, unreadCount: 0 } : chat
+      ),
+      currentChat:
+        state.currentChat?.id === chatId
+          ? { ...state.currentChat, unreadCount: 0 }
+          : state.currentChat,
+    }));
   },
 
   // Block status helpers

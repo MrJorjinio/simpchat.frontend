@@ -547,9 +547,10 @@ interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode?: boolean;
+  onNavigateToChat?: (chatId: string) => void;
 }
 
-const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose, isDarkMode = false }) => {
+const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose, isDarkMode = false, onNavigateToChat }) => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
@@ -574,6 +575,7 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
       // Map normalized notification format to display format
       const mappedNotifs = Array.isArray(notifs) ? notifs.map((n: any) => ({
         id: n.id,
+        chatId: n.chatId,
         title: `Message from ${n.senderName}`,
         message: n.content,
         type: 'message',
@@ -593,16 +595,23 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
     }
   };
 
-  const handleMarkAsSeen = async (notificationId: string) => {
+  const handleNotificationClick = async (notificationId: string, chatId?: string) => {
     try {
       const notificationService = await import('../services/notification.service').then(
         (m) => m.notificationService
       );
       await notificationService.markAsSeen(notificationId);
-      // Reload notifications
-      await loadNotifications();
+
+      // Navigate to the chat if chatId is available
+      if (chatId && onNavigateToChat) {
+        onClose(); // Close the modal first
+        onNavigateToChat(chatId);
+      } else {
+        // Reload notifications if not navigating
+        await loadNotifications();
+      }
     } catch (error) {
-      console.error('Failed to mark notification as seen:', error);
+      console.error('Failed to handle notification click:', error);
     }
   };
 
@@ -641,13 +650,13 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
             ✕
           </button>
         </div>
-        <div className={styles.modalBody}>
+        <div className={styles.modalBody} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           {isLoadingNotifications ? (
             <div className={styles.loadingState}>Loading notifications...</div>
           ) : notifications.length === 0 ? (
             <div className={styles.emptyState}>No notifications yet</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <>
               {notifications.length > 0 && (
                 <button
                   onClick={handleMarkAllAsSeen}
@@ -660,15 +669,20 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
                     cursor: 'pointer',
                     fontSize: '13px',
                     fontWeight: 600,
+                    marginBottom: '12px',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1,
                   }}
                 >
                   Mark All as Read
                 </button>
               )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {notifications.map((notif: any) => (
                 <div
                   key={notif.id}
-                  onClick={() => handleMarkAsSeen(notif.id)}
+                  onClick={() => handleNotificationClick(notif.id, notif.chatId)}
                   style={{
                     padding: '14px',
                     background: notif.isRead
@@ -757,7 +771,8 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -800,6 +815,10 @@ const Dashboard: React.FC = () => {
 
   const isDarkMode = theme === 'dark';
 
+  // Track loaded chat ID to prevent duplicate loads
+  const loadedChatIdRef = useRef<string | null>(null);
+  const joinedChatIdRef = useRef<string | null>(null);
+
   // Initialize chats on mount
   useEffect(() => {
     const initChats = async () => {
@@ -811,44 +830,50 @@ const Dashboard: React.FC = () => {
     initChats();
   }, [chats.length]);
 
-  // Load messages when chat changes
+  // Load messages when chat ID changes (not when object reference changes)
+  const currentChatId = currentChat?.id;
   useEffect(() => {
     const loadMessages = async () => {
-      if (!currentChat || !currentChat.id || currentChat.id === 'search') {
+      if (!currentChatId || currentChatId === 'search') {
         console.log('[Dashboard] Clearing messages - no chat selected or search chat');
         setMessages([]);
+        loadedChatIdRef.current = null;
         return;
       }
 
       // Skip for temporary chats
-      if (currentChat.id.startsWith('temp_dm_')) {
+      if (currentChatId.startsWith('temp_dm_')) {
         console.log('[Dashboard] Temporary chat, skipping message load');
         setMessages([]);
+        loadedChatIdRef.current = currentChatId;
+        return;
+      }
+
+      // Skip if already loaded for this chat ID
+      if (loadedChatIdRef.current === currentChatId) {
+        console.log('[Dashboard] Messages already loaded for chat:', currentChatId);
         return;
       }
 
       console.log('[Dashboard] ========== LOADING MESSAGES FOR CHAT ==========');
-      console.log('[Dashboard] Chat ID:', currentChat.id);
-      console.log('[Dashboard] Chat Name:', currentChat.name);
-      console.log('[Dashboard] Chat Type:', currentChat.type);
+      console.log('[Dashboard] Chat ID:', currentChatId);
 
+      loadedChatIdRef.current = currentChatId;
       setIsLoading(true);
       try {
         console.log('[Dashboard] Fetching chat data from API...');
-        const chatData = await chatService.getChat(currentChat.id);
-        console.log('[Dashboard] API Response - Chat:', chatData);
+        const chatData = await chatService.getChat(currentChatId);
         console.log('[Dashboard] API Response - Messages count:', chatData.messages?.length || 0);
-        if (chatData.messages && chatData.messages.length > 0) {
-          console.log('[Dashboard] First message in response:', chatData.messages[0]);
-        }
 
         setMessages(chatData.messages || []);
-        console.log('[Dashboard] Set messages state to:', chatData.messages?.length || 0, 'messages');
 
         // Mark messages as seen when opening the chat
         if (signalR.isConnected) {
-          console.log('[Dashboard] Marking messages as seen for chat:', currentChat.id);
-          signalR.markMessagesAsSeen(currentChat.id);
+          signalR.markMessagesAsSeen(currentChatId);
+
+          // Reset unreadCount to 0 for the current chat immediately (don't wait for SignalR event)
+          const chatStore = useChatStore.getState();
+          chatStore.resetUnreadCount(currentChatId);
         }
       } catch (error) {
         console.error('[Dashboard] Failed to load messages:', error);
@@ -859,35 +884,49 @@ const Dashboard: React.FC = () => {
     };
 
     loadMessages();
-  }, [currentChat]);
+  }, [currentChatId, signalR.isConnected]);
 
-  // Join/leave SignalR chat rooms when chat changes
+  // Join/leave SignalR chat rooms when chat ID changes
   useEffect(() => {
-    const joinLeaveChats = async () => {
-      if (!currentChat || !currentChat.id || currentChat.id === 'search' || currentChat.id.startsWith('temp_dm_')) {
-        return;
-      }
+    if (!currentChatId || currentChatId === 'search' || currentChatId.startsWith('temp_dm_')) {
+      return;
+    }
 
+    // Skip if already joined this chat
+    if (joinedChatIdRef.current === currentChatId) {
+      console.log('[Dashboard] Already joined chat room:', currentChatId);
+      return;
+    }
+
+    const joinChat = async () => {
       if (signalR.isConnected) {
         try {
-          console.log('[Dashboard] Joining SignalR chat room:', currentChat.id);
-          await signalR.joinChat(currentChat.id);
+          // Leave previous chat first if we were in one
+          if (joinedChatIdRef.current && joinedChatIdRef.current !== currentChatId) {
+            console.log('[Dashboard] Leaving previous chat room:', joinedChatIdRef.current);
+            await signalR.leaveChat(joinedChatIdRef.current).catch(console.error);
+          }
+
+          console.log('[Dashboard] Joining SignalR chat room:', currentChatId);
+          await signalR.joinChat(currentChatId);
+          joinedChatIdRef.current = currentChatId;
         } catch (error) {
           console.error('[Dashboard] Failed to join chat room:', error);
         }
       }
-
-      // Cleanup: leave chat when unmounting or switching chats
-      return () => {
-        if (currentChat && currentChat.id && signalR.isConnected) {
-          console.log('[Dashboard] Leaving SignalR chat room:', currentChat.id);
-          signalR.leaveChat(currentChat.id).catch(console.error);
-        }
-      };
     };
 
-    joinLeaveChats();
-  }, [currentChat, signalR.isConnected]);
+    joinChat();
+
+    // Cleanup: leave chat when unmounting
+    return () => {
+      if (joinedChatIdRef.current && signalR.isConnected) {
+        console.log('[Dashboard] Cleanup - Leaving SignalR chat room:', joinedChatIdRef.current);
+        signalR.leaveChat(joinedChatIdRef.current).catch(console.error);
+        joinedChatIdRef.current = null;
+      }
+    };
+  }, [currentChatId, signalR.isConnected]);
 
   const handleSelectChat = async (chat: Chat) => {
     // First set the chat for immediate UI feedback
@@ -1047,6 +1086,8 @@ const Dashboard: React.FC = () => {
         }
 
         if (realDm) {
+          // Update ref to prevent duplicate load from useEffect
+          loadedChatIdRef.current = realDm.id;
           chatStore.setCurrentChat(realDm);
           // Load messages for the newly created chat
           const chatData = await chatService.getChat(realDm.id);
@@ -1863,7 +1904,43 @@ const Dashboard: React.FC = () => {
         onUpdate={handleUpdateProfile}
         isDarkMode={isDarkMode}
       />
-      <NotificationsModal isOpen={showNotificationsModal} onClose={() => setShowNotificationsModal(false)} isDarkMode={isDarkMode} />
+      <NotificationsModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        isDarkMode={isDarkMode}
+        onNavigateToChat={async (chatId) => {
+          try {
+            // Find the chat from chats list
+            let targetChat = chats.find((c) => c.id === chatId);
+
+            if (!targetChat) {
+              // Chat not in list - reload chats first and try to find it
+              console.log('[Dashboard] Chat not in list, reloading chats...');
+              await useChatStore.getState().loadChats();
+              const freshChats = useChatStore.getState().chats;
+              targetChat = freshChats.find((c) => c.id === chatId);
+            }
+
+            if (targetChat) {
+              // Use handleSelectChat to properly load the chat with all setup
+              await handleSelectChat(targetChat);
+            } else {
+              // Still not found - try to load chat profile directly
+              console.log('[Dashboard] Chat still not in list, loading profile directly...');
+              const chatData = await chatService.getChatProfile(chatId);
+              if (chatData) {
+                // Set as current chat - this will trigger the useEffect to load messages
+                await handleSelectChat(chatData as Chat);
+              } else {
+                toast.error('Chat not found');
+              }
+            }
+          } catch (error) {
+            console.error('[Dashboard] Failed to load chat from notification:', error);
+            toast.error('Failed to open chat');
+          }
+        }}
+      />
       <CustomReactionModal
         isOpen={showCustomReactionModal}
         onClose={() => setShowCustomReactionModal(false)}

@@ -3,6 +3,7 @@ import { Users, Megaphone } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
 import { chatService } from '../services/chat.service';
+import { notificationService } from '../services/notification.service';
 import type { Chat, BackendMessage, User, ChatType, ChatMember } from '../types/api.types';
 import { Avatar } from './common/Avatar';
 import { OnlineStatusIndicator } from './common/OnlineStatusIndicator';
@@ -410,6 +411,112 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const { isUserOnline, getUserLastSeen, getOnlineMembersCount, loadPermissions } = useChatStore();
   const { user: currentUser } = useAuthStore();
 
+  // Track messages that have been marked as seen to avoid duplicate API calls
+  const seenMessagesRef = useRef<Set<string>>(new Set());
+
+  // Track previous state to control auto-scroll behavior
+  const prevChatIdRef = useRef<string | null>(null);
+  const prevMessageCountRef = useRef<number>(0);
+
+  // Refs for IntersectionObserver to avoid re-creating on every render
+  const messagesRef = useRef(messages);
+  const pendingNotificationsRef = useRef<Set<string>>(new Set());
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Keep messagesRef updated
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // IntersectionObserver for detecting when messages come into view
+  useEffect(() => {
+    if (!currentChat || !currentUser) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    // Reset seen messages when chat changes
+    seenMessagesRef.current = new Set();
+    pendingNotificationsRef.current = new Set();
+
+    const flushPendingNotifications = async () => {
+      const pending = Array.from(pendingNotificationsRef.current);
+      if (pending.length === 0) return;
+
+      pendingNotificationsRef.current = new Set();
+
+      try {
+        // Only call notification service - SignalR will broadcast the update
+        await notificationService.markMultipleAsSeen(pending);
+      } catch (error) {
+        console.error('[ChatView] Failed to mark notifications as seen:', error);
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = (entry.target as HTMLElement).dataset.messageId;
+            if (!messageId || seenMessagesRef.current.has(messageId)) return;
+
+            // Find the message in our messages ref (not state to avoid dependency)
+            const msg = messagesRef.current.find((m) => m.messageId === messageId);
+            if (!msg) return;
+
+            // Only process messages NOT from current user that have unseen notifications
+            if (!msg.isCurrentUser && msg.isNotificated && msg.notificationId) {
+              seenMessagesRef.current.add(messageId);
+              pendingNotificationsRef.current.add(msg.notificationId);
+
+              // Debounce the API call - wait 500ms after last visible message
+              if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+              }
+              debounceTimerRef.current = setTimeout(flushPendingNotifications, 500);
+            }
+          }
+        });
+      },
+      {
+        root: container,
+        rootMargin: '0px',
+        threshold: 0.5,
+      }
+    );
+
+    // Store observer in ref for re-observing new messages
+    observerRef.current = observer;
+
+    // Observe all message elements
+    const messageElements = container.querySelectorAll('[data-message-id]');
+    messageElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [currentChat?.id, currentUser]); // Removed messages from dependencies!
+
+  // Re-observe new message elements when messages are added
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || !observerRef.current) return;
+
+    // Only run when new messages are added
+    const messageElements = container.querySelectorAll('[data-message-id]');
+    messageElements.forEach((el) => {
+      const messageId = (el as HTMLElement).dataset.messageId;
+      if (messageId && !seenMessagesRef.current.has(messageId)) {
+        observerRef.current?.observe(el);
+      }
+    });
+  }, [messages.length]); // Only re-run when message count changes
+
   // Permission checks
   const { canSendMessage, canPinMessages, canManageMessages, isLoading: permissionsLoading } = usePermissions(currentChat?.id);
 
@@ -525,13 +632,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Handle scroll to detect if user is at bottom and mark notifications as seen
-  const handleScroll = async () => {
+  // Handle scroll to show/hide scroll button (seen detection now handled by IntersectionObserver)
+  const handleScroll = () => {
     const container = messagesContainerRef.current;
-    if (!container) {
-      console.log('[MainContent] Container ref is null');
-      return;
-    }
+    if (!container) return;
 
     // Check if scrolled to bottom (within 100px)
     const scrollHeight = container.scrollHeight;
@@ -539,99 +643,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const clientHeight = container.clientHeight;
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
 
-    console.log('[MainContent] SCROLL EVENT:', {
-      scrollHeight,
-      scrollTop,
-      clientHeight,
-      distance: scrollHeight - scrollTop - clientHeight,
-      isNearBottom,
-    });
-
     setShowScrollButton(!isNearBottom);
-
-    // If at bottom, mark visible message notifications as seen
-    if (isNearBottom && currentChat && messages.length > 0) {
-      try {
-        console.log('[MainContent] ========== USER AT BOTTOM ==========');
-        console.log('[MainContent] Chat ID:', currentChat.id);
-        console.log('[MainContent] Chat:', currentChat);
-        console.log('[MainContent] Total messages:', messages.length);
-        console.log('[MainContent] Raw messages array:', messages);
-        if (messages.length > 0) {
-          console.log('[MainContent] First message full object:', messages[0]);
-          console.log('[MainContent] First message keys:', Object.keys(messages[0]));
-        }
-
-        // Collect notification IDs from visible messages that are not seen by current user
-        const notificationIdsToMark: string[] = [];
-        let processedCount = 0;
-        let skippedCount = 0;
-
-        messages.forEach((msg: any, index: number) => {
-          // Log first 3 messages for debugging
-          if (index < 3) {
-            console.log(`[MainContent] Message ${index}:`, {
-              messageId: msg.messageId || msg.id,
-              notificationId: msg.notificationId,
-              isCurrentUser: msg.isCurrentUser,
-              isNotificated: msg.isNotificated,
-              senderUsername: msg.senderUsername,
-              hasNotifId: !!msg.notificationId,
-            });
-          }
-
-          // Only mark notifications for messages that:
-          // 1. Are not from current user (isCurrentUser = false)
-          // 2. Have unseen notification (isNotificated = true)
-          // 3. Have a valid notification ID (not empty/null)
-          if (!msg.isCurrentUser && msg.isNotificated && msg.notificationId) {
-            notificationIdsToMark.push(msg.notificationId);
-            processedCount++;
-          } else {
-            skippedCount++;
-          }
-        });
-
-        console.log('[MainContent] Processing summary:', {
-          processedCount,
-          skippedCount,
-          totalToMark: notificationIdsToMark.length,
-          notificationIds: notificationIdsToMark,
-        });
-
-        if (notificationIdsToMark.length > 0) {
-          const notificationService = await import('../services/notification.service').then(
-            (m) => m.notificationService
-          );
-
-          console.log('[MainContent] Calling markMultipleAsSeen with IDs:', notificationIdsToMark);
-
-          try {
-            const markResult = await notificationService.markMultipleAsSeen(notificationIdsToMark);
-            console.log(
-              '[MainContent] Successfully marked',
-              notificationIdsToMark.length,
-              'message notifications as seen. Result:',
-              markResult
-            );
-          } catch (error) {
-            console.error('[MainContent] Failed to mark notifications as seen:', error);
-          }
-        } else {
-          console.log('[MainContent] No unseen messages found to mark as seen');
-          console.log('[MainContent] Reasons - isCurrentUser or isNotificated false, or notificationId empty');
-        }
-        console.log('[MainContent] ========== END BOTTOM HANDLER ==========');
-      } catch (error) {
-        console.error('[MainContent] Error processing scroll:', error);
-      }
-    }
   };
 
+  // Auto-scroll only when: chat changes OR new messages are added (not on property updates like isSeen)
   useEffect(() => {
-    scrollToBottom();
-    setShowScrollButton(false);
-  }, [messages, currentChat]);
+    const chatChanged = currentChat?.id !== prevChatIdRef.current;
+    const newMessagesAdded = messages.length > prevMessageCountRef.current;
+
+    // Update refs
+    prevChatIdRef.current = currentChat?.id || null;
+    prevMessageCountRef.current = messages.length;
+
+    // Only scroll to bottom if chat changed or new messages were added
+    if (chatChanged || newMessagesAdded) {
+      scrollToBottom();
+      setShowScrollButton(false);
+    }
+  }, [messages, currentChat?.id]);
 
   const handleSendMessage = async () => {
     console.log('[ChatView] handleSendMessage called', {
@@ -989,10 +1018,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onScroll={handleScroll}
       >
         {isLoadingMessages && <div className={styles.loading}>Loading messages...</div>}
-        {!isLoadingMessages && messages.length === 0 && (
+        {!isLoadingMessages && (!messages || messages.length === 0) && (
           <div className={styles.noMessages}>No messages yet. Start the conversation!</div>
         )}
-        {messages.map((msg) => (
+        {Array.isArray(messages) && messages.map((msg) => (
           <div
             key={msg.messageId}
             data-message-id={msg.messageId}
@@ -1257,26 +1286,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   >
                     ⋯
                   </button>
-                  {!msg.isCurrentUser && (
-                    <button
-                      onClick={() => setReplyToMessage(msg)}
-                      title="Reply"
-                      style={{
-                        padding: '2px 6px',
-                        backgroundColor: 'transparent',
-                        border: '1px solid var(--border)',
-                        borderRadius: '10px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        opacity: 0.6,
-                        transition: 'opacity 0.2s',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                      onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
-                    >
-                      ↩️
-                    </button>
-                  )}
                 </div>
               </div>
             )}
@@ -1332,6 +1341,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </button>
                   ))}
                 </div>
+                {/* Reply option */}
+                <button
+                  onClick={() => {
+                    setReplyToMessage(msg);
+                    setContextMenu(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontSize: '14px' }}>↩️</span>
+                  Reply
+                </button>
                 {/* Pin/Unpin option */}
                 {canPinMessages && (
                   <button
@@ -1427,33 +1464,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
           title="Scroll to bottom"
           style={{
             position: 'absolute',
-            bottom: '100px',
-            right: '20px',
-            width: '40px',
-            height: '40px',
+            bottom: '90px',
+            right: '24px',
+            width: '44px',
+            height: '44px',
             borderRadius: '50%',
-            backgroundColor: 'var(--accent)',
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
             color: '#fff',
             border: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '20px',
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
-            transition: 'all 0.2s ease',
+            boxShadow: '0 4px 15px rgba(99, 102, 241, 0.4)',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             zIndex: 10,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.2)';
+            e.currentTarget.style.transform = 'translateY(-3px) scale(1.05)';
+            e.currentTarget.style.boxShadow = '0 8px 25px rgba(99, 102, 241, 0.5)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.15)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 102, 241, 0.4)';
           }}
         >
-          ↓
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
         </button>
       )}
 
@@ -1548,37 +1586,70 @@ export const ChatView: React.FC<ChatViewProps> = ({
               bottom: '100%',
               left: 0,
               right: 0,
-              padding: '8px 12px',
-              backgroundColor: 'var(--background)',
-              borderTop: '2px solid var(--accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontSize: '13px',
+              padding: '10px 14px',
+              backgroundColor: 'var(--surface)',
+              borderTop: '3px solid var(--accent)',
+              borderRadius: '8px 8px 0 0',
+              boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
             }}
           >
-            <div>
-              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                Replying to {replyToMessage.senderUsername}:
-              </span>{' '}
-              <span style={{ color: 'var(--text-secondary)' }}>
-                {replyToMessage.content.substring(0, 50)}
-                {replyToMessage.content.length > 50 ? '...' : ''}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '14px' }}>↩️</span>
+                  <span style={{ color: 'var(--accent)', fontWeight: 600, fontSize: '13px' }}>
+                    Replying to {replyToMessage.senderUsername}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    padding: '8px 10px',
+                    backgroundColor: 'var(--background)',
+                    borderRadius: '6px',
+                    borderLeft: '3px solid var(--accent)',
+                  }}
+                >
+                  {replyToMessage.fileUrl && (
+                    <div style={{ marginBottom: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      📎 Attachment
+                    </div>
+                  )}
+                  <div style={{ color: 'var(--text)', fontSize: '13px', wordBreak: 'break-word' }}>
+                    {replyToMessage.content ? (
+                      <>
+                        {replyToMessage.content.substring(0, 100)}
+                        {replyToMessage.content.length > 100 ? '...' : ''}
+                      </>
+                    ) : (
+                      <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                        {replyToMessage.fileUrl ? 'File attachment' : 'No content'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setReplyToMessage(null)}
+                style={{
+                  padding: '6px',
+                  backgroundColor: 'var(--background)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--border)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--background)'}
+                title="Cancel reply"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              onClick={() => setReplyToMessage(null)}
-              style={{
-                padding: '4px 8px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                fontSize: '16px',
-              }}
-            >
-              ✕
-            </button>
           </div>
         )}
         <input
