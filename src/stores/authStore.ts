@@ -14,7 +14,7 @@ interface AuthState {
   logout: () => void;
   setUser: (user: User) => void;
   clearError: () => void;
-  initializeAuth: () => void;
+  initializeAuth: () => Promise<void>;
 }
 
 const getStoredToken = () => {
@@ -41,7 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
   initialized: false,
 
-  initializeAuth: () => {
+  initializeAuth: async () => {
     const storedUser = getStoredUser();
     const storedToken = getStoredToken();
     console.log('[authStore] Initializing auth:', {
@@ -49,11 +49,38 @@ export const useAuthStore = create<AuthState>((set) => ({
       hasToken: !!storedToken,
       user: storedUser
     });
-    set({
-      user: storedUser,
-      token: storedToken,
-      initialized: true,
-    });
+
+    // If we have a stored token, validate it with the backend
+    if (storedToken && storedUser) {
+      try {
+        console.log('[authStore] Validating stored token...');
+        const { userService } = await import('../services/user.service');
+        const userData = await userService.getCurrentUser();
+        console.log('[authStore] Token is valid, user:', userData);
+        set({
+          user: userData,
+          token: storedToken,
+          initialized: true,
+        });
+      } catch (error: any) {
+        console.warn('[authStore] Stored token is invalid, clearing auth:', error?.message);
+        // Token is invalid or expired, clear localStorage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        set({
+          user: null,
+          token: null,
+          initialized: true,
+        });
+      }
+    } else {
+      // No stored auth data
+      set({
+        user: storedUser,
+        token: storedToken,
+        initialized: true,
+      });
+    }
   },
 
   login: async (credentials: LoginCredentials) => {

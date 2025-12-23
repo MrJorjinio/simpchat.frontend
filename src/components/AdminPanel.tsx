@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { userService } from '../services/user.service';
 import type { User } from '../types/api.types';
-import { toast } from './common/Toast';
+// Toast removed - using visual feedback instead
 import { confirm } from './common/ConfirmModal';
 import styles from './Dashboard.module.css';
 
@@ -58,6 +58,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isDarkMode = f
       confirmText: 'Delete',
       cancelText: 'Cancel',
       variant: 'danger',
+      icon: 'delete',
     });
 
     if (!confirmed) return;
@@ -66,14 +67,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isDarkMode = f
       await userService.deleteUser(userId);
       // Reload users
       await loadUsers();
-      toast.success(`User "${username}" has been deleted successfully.`);
     } catch (err: any) {
       console.error('Failed to delete user:', err);
-      if (err.response?.status === 403) {
-        toast.error('Access denied. You need admin privileges to delete users.');
-      } else {
-        toast.error('Failed to delete user. Please try again.');
-      }
     }
   };
 

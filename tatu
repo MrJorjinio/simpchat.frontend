@@ -1,0 +1,86 @@
+[33mcommit d23a2e6df548473d1cfaae61417ca712a723e4a1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Mon Dec 22 15:48:00 2025 +0500
+
+    Update register/login pages to new UI edition and also add landing page
+
+[33mcommit 7c894710dd4f5dec42e94d12a86da52a8aa3c9fa[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Mon Dec 22 14:22:03 2025 +0500
+
+    Adjust frotnend some parts to backend
+
+[33mcommit 51beb67b358676bcbdc3dffe02081dd855fd57e7[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Sun Dec 21 21:35:55 2025 +0500
+
+    Add new features like reactions on messages, banning users, remaked chat permissions management, seen status for messages and fixed bugs
+
+[33mcommit 3d3148cfffea3516e217c4c4b130c83fc0821ce7[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Wed Dec 17 00:36:10 2025 +0500
+
+    Added bio view for user profile viewing
+
+[33mcommit 1266c6d28e6b4cd1a1b6cabf29ffee0807c7425a[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Wed Dec 17 00:30:29 2025 +0500
+
+    Bug fixes
+
+[33mcommit 13bcd1f31fa7a7efde6ee4885f6536d4d7ae18b6[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Tue Dec 16 19:22:20 2025 +0500
+
+    Fixed banning feature and online users handling when watching chat members online count
+
+[33mcommit 471171442aaeac9a3312fc469c58ac6693c3eb1f[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Tue Dec 16 15:02:42 2025 +0500
+
+    Added file support, fixed real-time messaging
+
+[33mcommit 071acfff348cf973f5685cec5e2f5ce111b98643[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Mon Dec 15 22:10:54 2025 +0500
+
+    New refactored UI, and bug fixes
+
+[33mcommit ab6b16fd0d3b7e830849a0dbc2f804d294e8df1a[m
+Merge: 05fa336 4d2fd9f
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Sun Dec 14 16:31:07 2025 +0500
+
+    Merge branch 'main' of https://github.com/MrJorjinio/simpchat.frontend
+
+[33mcommit 05fa336edb183957659ce33bfb52a8659c7a54fd[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Sun Dec 14 16:30:42 2025 +0500
+
+    Refactored UI and fix bugs
+
+[33mcommit 4d2fd9f982ee71e1d317f2aa0dc7808573ec7704[m
+Author: Jorjinio <jorjiniomr@gmail.com>
+Date:   Fri Dec 5 17:13:08 2025 +0500
+
+    Create README.md for SimpChat project
+    
+    Added comprehensive README for SimpChat project including features, technology stack, setup instructions, and contribution guidelines.
+
+[33mcommit a329453066b9f8b585370159046db4b4bf826111[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Fri Dec 5 16:54:59 2025 +0500
+
+    chore(readme): This commit intoduces deleting useless readme file
+
+[33mcommit ce7993f7197f405a6fff6f021b53dc63d0fddc88[m
+Author: MrJorjinio <jorjiniomr@gmail.com>
+Date:   Fri Dec 5 16:52:34 2025 +0500
+
+    feat(demo): This commit introduces demo version of simpchat chatting application's frontend
+
+[33mcommit 848ce48de24c960f0aa22b2b1f059c5adfc07b81[m
+Author: Jorjinio <jorjiniomr@gmail.com>
+Date:   Wed Nov 26 16:29:10 2025 +0500
+
+    Initial commit

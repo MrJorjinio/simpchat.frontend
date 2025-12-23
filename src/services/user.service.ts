@@ -10,9 +10,8 @@ export const userService = {
 
   updateProfile: async (formData: FormData) => {
     // Backend PUT /users/me returns NO user data, just success/failure
-    await api.put<any>('/users/me', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // Don't set Content-Type header - axios will set it automatically with correct boundary
+    await api.put<any>('/users/me', formData);
     // Re-fetch user data to get updated profile
     return userService.getCurrentUser();
   },

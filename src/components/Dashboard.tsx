@@ -18,7 +18,7 @@ import { ChatView } from './ChatView';
 import { SettingsMenu } from './SettingsMenu';
 import { RightPanel } from './RightPanel';
 import { getInitials, fixMinioUrl } from '../utils/helpers';
-import { toast } from './common/Toast';
+// Toast removed - using visual feedback instead
 import { confirm } from './common/ConfirmModal';
 
 // MODAL COMPONENTS
@@ -1094,7 +1094,6 @@ const Dashboard: React.FC = () => {
           setMessages(chatData.messages || []);
         } else {
           console.error('[Dashboard] Failed to find newly created DM after retries');
-          toast.error('Message sent, but failed to load conversation. Please refresh.');
         }
       } else {
         // Regular chat - reload messages
@@ -1103,12 +1102,6 @@ const Dashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Show ban error or generic error message
-      if (isBanError(error)) {
-        toast.error(getBanErrorMessage(error));
-      } else {
-        toast.error(extractErrorMessage(error, 'Failed to send message'));
-      }
     }
   };
 
@@ -1128,14 +1121,12 @@ const Dashboard: React.FC = () => {
       }
 
       await chatService.createGroup(formData);
-      toast.success('Group created successfully!');
 
       // Reload chats
       const chatStore = useChatStore.getState();
       await chatStore.loadChats();
     } catch (error: any) {
       console.error('Failed to create group:', error);
-      toast.error(extractErrorMessage(error, 'Failed to create group'));
       throw error;
     }
   };
@@ -1156,14 +1147,12 @@ const Dashboard: React.FC = () => {
       }
 
       await chatService.createChannel(formData);
-      toast.success('Channel created successfully!');
 
       // Reload chats
       const chatStore = useChatStore.getState();
       await chatStore.loadChats();
     } catch (error: any) {
       console.error('Failed to create channel:', error);
-      toast.error(extractErrorMessage(error, 'Failed to create channel'));
       throw error;
     }
   };
@@ -1187,14 +1176,12 @@ const Dashboard: React.FC = () => {
       // Determine chat type from chatToEdit
       const chatType = chatToEdit?.type === 'channel' ? 'channel' : 'group';
       await chatService.updateChat(chatId, chatType as 'group' | 'channel', formData);
-      toast.success('Group/Channel updated successfully!');
 
       // Reload chats
       const chatStore = useChatStore.getState();
       await chatStore.loadChats();
     } catch (error: any) {
       console.error('Failed to update group/channel:', error);
-      toast.error(extractErrorMessage(error, 'Failed to update group/channel'));
       throw error;
     }
   };
@@ -1203,13 +1190,11 @@ const Dashboard: React.FC = () => {
     if (!currentChat) return;
     try {
       await chatService.banUser(currentChat.id, userId);
-      toast.success('User banned and removed from chat');
       // Reload chat profile
       const updated = await chatService.getChatProfile(currentChat.id);
       useChatStore.getState().setCurrentChat(updated);
     } catch (error) {
       console.error('Failed to ban user:', error);
-      toast.error(getBanErrorMessage(error));
     }
   };
 
@@ -1217,12 +1202,10 @@ const Dashboard: React.FC = () => {
     if (!currentChat) return;
     try {
       await chatService.unbanUser(currentChat.id, userId);
-      toast.success('User unbanned successfully');
       const updated = await chatService.getChatProfile(currentChat.id);
       useChatStore.getState().setCurrentChat(updated);
     } catch (error) {
       console.error('Failed to unban user:', error);
-      toast.error(getBanErrorMessage(error));
     }
   };
 
@@ -1234,13 +1217,11 @@ const Dashboard: React.FC = () => {
       } else if (currentChat.type === 'channel') {
         await chatService.removeMemberFromChannel(currentChat.id, userId);
       }
-      toast.success('Member removed successfully');
       // Reload chat profile
       const updated = await chatService.getChatProfile(currentChat.id);
       useChatStore.getState().setCurrentChat(updated);
     } catch (error) {
       console.error('Failed to remove member:', error);
-      toast.error(extractErrorMessage(error, 'Failed to remove member'));
     }
   };
 
@@ -1248,12 +1229,10 @@ const Dashboard: React.FC = () => {
     if (!currentChat) return;
     try {
       await chatService.updateChatPrivacy(currentChat.id, privacy);
-      toast.success(`Privacy updated to ${privacy}`);
       const updated = await chatService.getChatProfile(currentChat.id);
       useChatStore.getState().setCurrentChat(updated);
     } catch (error) {
       console.error('Failed to update privacy:', error);
-      toast.error(extractErrorMessage(error, 'Failed to update privacy'));
     }
   };
 
@@ -1266,20 +1245,19 @@ const Dashboard: React.FC = () => {
       confirmText: 'Leave',
       cancelText: 'Stay',
       variant: 'warning',
+      icon: 'leave',
     });
 
     if (!confirmed) return;
 
     try {
       await chatService.leaveChat(currentChat.id, currentChat.type as 'group' | 'channel');
-      toast.success(`Left ${currentChat.type} successfully`);
       // Reload chats and clear current chat
       await useChatStore.getState().loadChats();
       useChatStore.getState().setCurrentChat(null);
       setShowGroupProfileModal(false);
     } catch (error) {
       console.error('Failed to leave chat:', error);
-      toast.error(extractErrorMessage(error, 'Failed to leave'));
     }
   };
 
@@ -1287,14 +1265,12 @@ const Dashboard: React.FC = () => {
     if (!currentChat) return;
     try {
       await chatService.deleteChat(currentChat.id, currentChat.type as 'group' | 'channel');
-      toast.success(`${currentChat.type === 'group' ? 'Group' : 'Channel'} deleted successfully`);
       // Reload chats and clear current chat
       await useChatStore.getState().loadChats();
       useChatStore.getState().setCurrentChat(null);
       setShowGroupProfileModal(false);
     } catch (error) {
       console.error('Failed to delete chat:', error);
-      toast.error(extractErrorMessage(error, `Failed to delete ${currentChat.type}`));
     }
   };
 
@@ -1304,10 +1280,8 @@ const Dashboard: React.FC = () => {
       await userService.blockUser(userId);
       // Update store immediately for instant UI feedback
       useChatStore.getState().addBlockedUser(userId);
-      toast.success('User blocked successfully');
     } catch (error) {
       console.error('Failed to block user:', error);
-      toast.error(extractErrorMessage(error, 'Failed to block user'));
     }
   };
 
@@ -1317,10 +1291,8 @@ const Dashboard: React.FC = () => {
       await userService.unblockUser(userId);
       // Update store immediately for instant UI feedback
       useChatStore.getState().removeBlockedUser(userId);
-      toast.success('User unblocked successfully');
     } catch (error) {
       console.error('Failed to unblock user:', error);
-      toast.error(extractErrorMessage(error, 'Failed to unblock user'));
     }
   };
 
@@ -1334,10 +1306,8 @@ const Dashboard: React.FC = () => {
 
       const { reactionService } = await import('../services/reaction.service');
       await reactionService.createReaction(formData);
-      toast.success('Custom reaction created successfully!');
     } catch (error: any) {
       console.error('Failed to create custom reaction:', error);
-      toast.error(extractErrorMessage(error, 'Failed to create custom reaction'));
       throw error;
     }
   };
@@ -1367,11 +1337,8 @@ const Dashboard: React.FC = () => {
       // Update auth store
       const authStore = useAuthStore.getState();
       authStore.setUser(updatedUser);
-
-      toast.success('Profile updated successfully!');
     } catch (error: any) {
       console.error('Failed to update profile:', error);
-      toast.error(extractErrorMessage(error, 'Failed to update profile'));
       throw error;
     }
   };
@@ -1594,7 +1561,6 @@ const Dashboard: React.FC = () => {
         setShowGroupProfileModal(true);
       } catch (error) {
         console.error('[Search] Failed to load chat profile:', error);
-        toast.error(extractErrorMessage(error, 'Failed to load profile'));
       } finally {
         setIsLoadingUserProfile(false);
       }
@@ -1606,7 +1572,7 @@ const Dashboard: React.FC = () => {
   const handleSendMessage = async (userId: string, message?: string) => {
     try {
       if (!userId) {
-        toast.error('Error: User ID not found');
+        console.error('Error: User ID not found');
         return;
       }
 
@@ -1749,12 +1715,10 @@ const Dashboard: React.FC = () => {
           }
         } catch (error) {
           console.error('[Dashboard] Error sending message:', error);
-          toast.error(extractErrorMessage(error, 'Failed to send message'));
         }
       }
     } catch (error) {
       console.error('[Dashboard] Failed to open DM:', error);
-      toast.error(extractErrorMessage(error, 'Failed to open direct message'));
     }
   };
 
@@ -1932,12 +1896,11 @@ const Dashboard: React.FC = () => {
                 // Set as current chat - this will trigger the useEffect to load messages
                 await handleSelectChat(chatData as Chat);
               } else {
-                toast.error('Chat not found');
+                console.error('Chat not found');
               }
             }
           } catch (error) {
             console.error('[Dashboard] Failed to load chat from notification:', error);
-            toast.error('Failed to open chat');
           }
         }}
       />

@@ -182,10 +182,8 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 102, 255, 0.2);
-}
+/* Removed global button hover transform - was causing unwanted movement in dashboard buttons */
+/* Individual components should define their own hover states */
 
 /* ====================== TYPOGRAPHY ====================== */
 

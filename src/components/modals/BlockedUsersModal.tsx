@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserX, X, Unlock } from 'lucide-react';
 import { userService } from '../../services/user.service';
-import { toast } from '../common/Toast';
+// Toast removed - using visual feedback instead
 import { confirm } from '../common/ConfirmModal';
 import { getInitials, fixMinioUrl } from '../../utils/helpers';
 import { extractErrorMessage } from '../../utils/errorHandler';
@@ -41,7 +41,6 @@ export const BlockedUsersModal: React.FC<BlockedUsersModalProps> = ({
       setBlockedUsers(data || []);
     } catch (error) {
       console.error('Failed to load blocked users:', error);
-      toast.error(extractErrorMessage(error, 'Failed to load blocked users'));
     } finally {
       setIsLoading(false);
     }
@@ -53,7 +52,8 @@ export const BlockedUsersModal: React.FC<BlockedUsersModalProps> = ({
       message: `Are you sure you want to unblock ${user.username}? They will be able to message you again.`,
       confirmText: 'Unblock',
       cancelText: 'Cancel',
-      variant: 'warning',
+      variant: 'success',
+      icon: 'success',
     });
 
     if (!confirmed) return;
@@ -62,10 +62,8 @@ export const BlockedUsersModal: React.FC<BlockedUsersModalProps> = ({
     try {
       await userService.unblockUser(user.userId);
       setBlockedUsers(prev => prev.filter(u => u.userId !== user.userId));
-      toast.success(`${user.username} has been unblocked`);
     } catch (error) {
       console.error('Failed to unblock user:', error);
-      toast.error(extractErrorMessage(error, 'Failed to unblock user'));
     } finally {
       setUnblockingUserId(null);
     }

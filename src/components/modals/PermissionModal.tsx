@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, MessageSquare, Users, Settings, Ban, Pin, UserPlus, Loader2 } from 'lucide-react';
 import { extractErrorMessage } from '../../utils/errorHandler';
-import { toast } from '../common/Toast';
+// Toast removed - using visual feedback instead
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
 import styles from './PermissionModal.module.css';
@@ -148,8 +148,6 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
         if (isModifyingOwnPermissions) {
           useChatStore.getState().revokePermission(chatId, permissionName);
         }
-
-        toast.success(`Revoked "${PERMISSIONS.find(p => p.name === permissionName)?.label}" permission`);
       } else {
         await permissionService.grantPermission(chatId, member.userId, permissionName);
         setUserPermissions([...userPermissions, permissionName]);
@@ -158,14 +156,11 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
         if (isModifyingOwnPermissions) {
           useChatStore.getState().grantPermission(chatId, permissionName);
         }
-
-        toast.success(`Granted "${PERMISSIONS.find(p => p.name === permissionName)?.label}" permission`);
       }
 
       await onPermissionsChanged();
     } catch (error) {
       console.error('Failed to update permission:', error);
-      toast.error(extractErrorMessage(error, 'Failed to update permission'));
     } finally {
       setUpdatingPermission(null);
     }

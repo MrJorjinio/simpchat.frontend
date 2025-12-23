@@ -47,8 +47,9 @@ export const messageService = {
         }
       }
 
+      // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
       const response = await api.post<any>('/messages', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': undefined },
       });
       console.log('[MessageService] Response:', response.data);
       return response.data?.data || response.data;
@@ -64,11 +65,12 @@ export const messageService = {
    * @param content New content
    */
   editMessage: async (messageId: string, content: string) => {
+    // Backend expects FormData ([FromForm] attribute)
+    // Must remove default Content-Type header so axios can set multipart/form-data with boundary
     const formData = new FormData();
     formData.append('Content', content);
-
     const response = await api.put<any>(`/messages/${messageId}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
     });
     return response.data?.data || response.data;
   },

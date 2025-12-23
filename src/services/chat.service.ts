@@ -19,6 +19,13 @@ export const chatService = {
   getChat: async (chatId: string) => {
     const response = await api.get<any>(`/chats/${chatId}`);
     const rawChat = response.data?.data || response.data;
+    console.log('[ChatService] getChat raw response:', {
+      chatId,
+      rawChat,
+      hasMembers: !!rawChat?.members,
+      membersLength: rawChat?.members?.length,
+      members: rawChat?.members,
+    });
     return normalizeChat(rawChat);
   },
 
@@ -41,16 +48,18 @@ export const chatService = {
   },
 
   createGroup: async (formData: FormData) => {
+    // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
     const response = await api.post<any>('/groups', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
     });
     const rawChat = response.data?.data || response.data;
     return normalizeChat(rawChat);
   },
 
   createChannel: async (formData: FormData) => {
+    // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
     const response = await api.post<any>('/channels', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
     });
     const rawChat = response.data?.data || response.data;
     return normalizeChat(rawChat);
@@ -58,9 +67,10 @@ export const chatService = {
 
   updateChat: async (chatId: string, chatType: 'group' | 'channel', formData: FormData) => {
     const endpoint = chatType === 'group' ? '/groups' : '/channels';
+    // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
     const response = await api.put<any>(endpoint, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      params: { chatId }
+      params: { chatId },
+      headers: { 'Content-Type': undefined },
     });
     return response.data?.data || response.data;
   },
@@ -284,8 +294,9 @@ export const chatService = {
           content: initialMessage,
         });
 
+        // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
         await api.post<any>('/messages/', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+          headers: { 'Content-Type': undefined },
         });
 
         console.log('[ChatService] Message sent to existing DM:', dmChat.id);
@@ -305,8 +316,9 @@ export const chatService = {
           content: initialMessage,
         });
 
+        // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
         const response = await api.post<any>('/messages/', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+          headers: { 'Content-Type': undefined },
         });
 
         console.log('[ChatService] Message sent to new DM, conversation auto-created. Response:', response);

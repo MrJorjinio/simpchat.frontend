@@ -30,7 +30,7 @@ interface ChatState {
   setCurrentChat: (chat: Chat | null) => void;
   setMessages: (messages: BackendMessage[]) => void;
   loadMessages: (chatId: string, page?: number) => Promise<void>;
-  sendMessage: (chatId: string, receiverId: string | undefined, content: string, file?: File) => Promise<void>;
+  sendMessage: (chatId: string, receiverId: string | undefined, content: string, file?: File, replyId?: string) => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (messageId: string, emoji: string) => Promise<boolean>;
@@ -152,35 +152,46 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isLoadingMessages: true, error: null });
     try {
       const { chatService } = await import('../services/chat.service');
-      const chatData = await chatService.getChat(chatId);
-      set({ messages: chatData.messages || [], isLoadingMessages: false });
+      // Fetch both chat data (for messages) and profile (for members) in parallel
+      const [chatData, profileData] = await Promise.all([
+        chatService.getChat(chatId),
+        chatService.getChatProfile(chatId),
+      ]);
+      // Update currentChat with full profile data (including members) and messages from chat data
+      set((state) => ({
+        currentChat: state.currentChat?.id === chatId
+          ? { ...state.currentChat, ...profileData, messages: chatData.messages }
+          : state.currentChat,
+        messages: chatData.messages || [],
+        isLoadingMessages: false,
+      }));
     } catch (error: any) {
       const errorMessage = extractErrorMessage(error, 'Failed to load messages');
       set({ error: errorMessage, isLoadingMessages: false });
     }
   },
 
-  sendMessage: async (chatId: string, receiverId: string | undefined, content: string, file?: File) => {
+  sendMessage: async (chatId: string, receiverId: string | undefined, content: string, file?: File, replyId?: string) => {
     set({ error: null });
     try {
       if (file) {
         // File messages: use HTTP API (required for multipart/form-data)
+        // Don't add to local state - SignalR will broadcast the full message
         const formData = new FormData();
         if (chatId) formData.append('chatId', chatId);
         if (receiverId) formData.append('receiverId', receiverId);
         if (content) formData.append('content', content);
+        if (replyId) formData.append('replyId', replyId);
         formData.append('file', file);
 
-        const newMessage = await messageService.sendMessage(formData);
-        set((state) => ({
-          messages: [...state.messages, newMessage],
-        }));
+        await messageService.sendMessage(formData);
+        // SignalR handleReceiveMessage will add the message with full data
       } else {
         // Text-only messages: use SignalR for real-time delivery
         // Note: SignalR will broadcast the message to all participants
         // The message will be received via handleReceiveMessage
         const signalRService = await import('../services/signalr.service').then(m => m.signalRService);
-        await signalRService.sendMessage(chatId, content, receiverId || undefined, null);
+        await signalRService.sendMessage(chatId, content, receiverId || undefined, replyId || null);
         // Don't add to local state - let SignalR broadcast handle it
       }
     } catch (error: any) {
@@ -192,10 +203,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   editMessage: async (messageId: string, content: string) => {
     set({ error: null });
     try {
-      const updatedMessage = await messageService.editMessage(messageId, content);
+      await messageService.editMessage(messageId, content);
+      // Update message in place - don't replace entire object to avoid response format issues
       set((state) => ({
         messages: state.messages.map((msg) =>
-          msg.messageId === messageId ? updatedMessage : msg
+          msg.messageId === messageId
+            ? { ...msg, content, isEdited: true }
+            : msg
         ),
       }));
     } catch (error: any) {
@@ -466,38 +480,52 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Real-time event handlers
   handleReceiveMessage: (message: any) => {
     console.log('[ChatStore] Received message:', message);
-    const state = get();
     const currentUserId = useAuthStore.getState().user?.id;
 
-    // Add message to state if it's for the current chat
-    if (state.currentChat && message.chatId === state.currentChat.id) {
-      // Check if message already exists (avoid duplicates)
-      const exists = state.messages.some(m => m.messageId === message.messageId);
-      if (!exists) {
-        const newMessage: BackendMessage = {
-          messageId: message.messageId,
-          chatId: message.chatId,
-          senderId: message.senderId,
-          senderUsername: message.senderUsername || 'Unknown',
-          senderAvatarUrl: message.senderAvatarUrl,
-          content: message.content,
-          fileUrl: message.fileUrl,
-          replyId: message.replyId,
-          sentAt: message.sentAt,
-          isSeen: message.isSeen ?? false,
-          seenAt: message.seenAt,
-          isNotificated: false,
-          notificationId: '',
-          messageReactions: [],
-          isCurrentUser: message.senderId === currentUserId,
-        };
-        set({ messages: [...state.messages, newMessage] });
-        console.log('[ChatStore] Added new message to state, isCurrentUser:', newMessage.isCurrentUser);
+    // Add message to state if it's for the current chat (using callback for fresh state)
+    set((state) => {
+      if (state.currentChat && message.chatId === state.currentChat.id) {
+        // Check if message already exists (avoid duplicates)
+        const exists = state.messages.some(m => m.messageId === message.messageId);
+        if (!exists) {
+          const newMessage: BackendMessage = {
+            messageId: message.messageId,
+            chatId: message.chatId,
+            senderId: message.senderId,
+            senderUsername: message.senderUsername || 'Unknown',
+            senderAvatarUrl: message.senderAvatarUrl,
+            content: message.content,
+            fileUrl: message.fileUrl,
+            replyId: message.replyId,
+            sentAt: message.sentAt,
+            isSeen: message.isSeen ?? false,
+            seenAt: message.seenAt,
+            isNotificated: false,
+            notificationId: '',
+            messageReactions: [],
+            isCurrentUser: message.senderId === currentUserId,
+          };
+          console.log('[ChatStore] Added new message to state, isCurrentUser:', newMessage.isCurrentUser);
+          return { messages: [...state.messages, newMessage] };
+        }
       }
-    }
+      return {}; // No change
+    });
 
-    // Update chat list to show new last message
-    get().loadChats();
+    // Update chat list to show new last message (without full reload)
+    set((currentState) => ({
+      chats: currentState.chats
+        .map(chat =>
+          chat.id === message.chatId
+            ? {
+                ...chat,
+                lastMessage: message.content || (message.fileUrl ? '📎 Attachment' : ''),
+                updatedAt: message.sentAt || new Date().toISOString(),
+              }
+            : chat
+        )
+        .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+    }));
   },
 
   handleMessageEdited: (data) => {

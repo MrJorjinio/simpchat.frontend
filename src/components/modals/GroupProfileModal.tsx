@@ -221,8 +221,26 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
     });
 
     if (confirmed) {
+      // Immediately update local state for instant UI feedback
+      setProfile(prev => prev ? {
+        ...prev,
+        members: prev.members.filter(m => m.userId !== userId)
+      } : null);
+      // Then call the parent callback to perform the actual API call
       onKickMember(userId);
     }
+  };
+
+  // Wrapper for ban that updates local state immediately
+  const handleBan = async (userId: string) => {
+    if (!onBanMember) return;
+    // Immediately update local state for instant UI feedback
+    setProfile(prev => prev ? {
+      ...prev,
+      members: prev.members.filter(m => m.userId !== userId)
+    } : null);
+    // Then call the parent callback to perform the actual API call
+    await onBanMember(userId);
   };
 
   const handleSearchUsers = async (query: string) => {
@@ -864,7 +882,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         getUserLastSeen={getUserLastSeen}
                         onViewProfile={onViewUserProfile}
                         onKick={handleKick}
-                        onBanMember={onBanMember}
+                        onBanMember={handleBan}
                         chatId={chat.id}
                         canManageBans={canManageBans}
                         canManageUsers={canManageUsers}
@@ -897,7 +915,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         getUserLastSeen={getUserLastSeen}
                         onViewProfile={onViewUserProfile}
                         onKick={handleKick}
-                        onBanMember={onBanMember}
+                        onBanMember={handleBan}
                         chatId={chat.id}
                         canManageBans={canManageBans}
                         canManageUsers={canManageUsers}
@@ -930,7 +948,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         getUserLastSeen={getUserLastSeen}
                         onViewProfile={onViewUserProfile}
                         onKick={handleKick}
-                        onBanMember={onBanMember}
+                        onBanMember={handleBan}
                         chatId={chat.id}
                         canManageBans={canManageBans}
                         canManageUsers={canManageUsers}

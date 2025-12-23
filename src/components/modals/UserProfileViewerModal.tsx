@@ -1,11 +1,130 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, UserX, UserCheck, Ban } from 'lucide-react';
+import { MessageCircle, UserX, UserCheck, Ban, X, Calendar, Mail, Clock } from 'lucide-react';
 import type { User } from '../../types/api.types';
 import { userService } from '../../services/user.service';
 import { useChatStore } from '../../stores/chatStore';
 import { confirm } from '../common/ConfirmModal';
+import { formatLastSeen } from '../../utils/helpers';
 
+// ============================================================================
+// DESIGN SYSTEM - Refined Noir Theme (matches GroupProfileModal)
+// ============================================================================
+const colors = {
+  bg: '#050505',
+  surface: '#0a0a0a',
+  surfaceElevated: '#0f0f0f',
+  surfaceHover: '#151515',
+  border: '#1a1a1a',
+  borderLight: '#252525',
+  primary: '#10b981',
+  primaryHover: '#0d9668',
+  primaryMuted: 'rgba(16, 185, 129, 0.15)',
+  danger: '#ef4444',
+  dangerHover: '#dc2626',
+  dangerMuted: 'rgba(239, 68, 68, 0.15)',
+  warning: '#f59e0b',
+  warningMuted: 'rgba(245, 158, 11, 0.15)',
+  text: '#ffffff',
+  textSecondary: '#a1a1aa',
+  textMuted: '#71717a',
+};
+
+// Custom emerald cursor SVG data URLs
+const cursorDefault = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%2310b981' d='M5.5 3.21V20.8l4.75-4.73 2.99 6.73L15.5 21.6l-3-6.7h6z'/%3E%3Cpath fill='%23064e3b' d='M6.5 5.61v11.68l3.38-3.37.37-.37.48 1.07 1.93 4.35 1.07-.47L11.8 14.1l-.48-1.07H16z'/%3E%3C/svg%3E") 5 3, default`;
+const cursorPointer = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%2310b981' d='M9 2.5a2.5 2.5 0 0 1 5 0v7.996l3.904-.74a2.095 2.095 0 0 1 2.537 2.466L19.5 17.5a6 6 0 0 1-6 6H11a7 7 0 0 1-7-7V9a2 2 0 1 1 4 0v3.5h1z'/%3E%3Cpath fill='%23064e3b' d='M10 2.5V14h-.5a1.5 1.5 0 0 1-1.5-1.5V9a1 1 0 1 0-2 0v7.5a6 6 0 0 0 6 6h2.5a5 5 0 0 0 5-5l.941-5.278a1.095 1.095 0 0 0-1.324-1.288l-4.117.78V2.5a1.5 1.5 0 0 0-3 0z'/%3E%3C/svg%3E") 9 4, pointer`;
+
+// Custom green scrollbar and cursor CSS (injected once)
+const userScrollbarStyles = `
+  /* Custom Emerald Cursor Styles */
+  .user-profile-modal-overlay {
+    cursor: ${cursorDefault};
+  }
+  .user-profile-modal-overlay * {
+    cursor: inherit;
+  }
+  .user-profile-modal-overlay button,
+  .user-profile-modal-overlay a,
+  .user-profile-modal-overlay [role="button"],
+  .user-profile-modal-overlay input[type="submit"],
+  .user-profile-modal-overlay input[type="button"],
+  .user-profile-modal-overlay .clickable {
+    cursor: ${cursorPointer};
+  }
+  .user-profile-modal-overlay input[type="text"],
+  .user-profile-modal-overlay input[type="email"],
+  .user-profile-modal-overlay input[type="password"],
+  .user-profile-modal-overlay input[type="search"],
+  .user-profile-modal-overlay textarea {
+    cursor: text;
+  }
+
+  /* Scrollbar Styles */
+  .user-profile-modal-content::-webkit-scrollbar {
+    width: 8px;
+  }
+  .user-profile-modal-content::-webkit-scrollbar-track {
+    background: ${colors.surface};
+    border-radius: 4px;
+  }
+  .user-profile-modal-content::-webkit-scrollbar-thumb {
+    background: ${colors.primary};
+    border-radius: 4px;
+    border: 2px solid ${colors.surface};
+  }
+  .user-profile-modal-content::-webkit-scrollbar-thumb:hover {
+    background: ${colors.primaryHover};
+  }
+`;
+
+// Inject scrollbar styles once
+if (typeof document !== 'undefined' && !document.getElementById('user-profile-scrollbar-styles')) {
+  const styleEl = document.createElement('style');
+  styleEl.id = 'user-profile-scrollbar-styles';
+  styleEl.textContent = userScrollbarStyles;
+  document.head.appendChild(styleEl);
+}
+
+// ============================================================================
+// ANIMATION VARIANTS
+// ============================================================================
+const overlayVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+const modalVariants = {
+  hidden: { opacity: 0, scale: 0.95, y: 20 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { type: 'spring', damping: 25, stiffness: 300 }
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: 20,
+    transition: { duration: 0.15 }
+  },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05, delayChildren: 0.1 }
+  },
+};
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 },
+};
+
+// ============================================================================
+// TYPES
+// ============================================================================
 interface UserProfileViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,6 +134,9 @@ interface UserProfileViewerModalProps {
   onUnblockUser?: (userId: string) => void;
 }
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
   isOpen,
   onClose,
@@ -30,7 +152,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
   const [theyBlockedMe, setTheyBlockedMe] = useState(false);
   const [isCheckingBlockStatus, setIsCheckingBlockStatus] = useState(false);
 
-  const { isUserOnline, usersYouBlocked, blockedByUsers } = useChatStore();
+  const { isUserOnline, getUserLastSeen, usersYouBlocked, blockedByUsers } = useChatStore();
 
   useEffect(() => {
     if (isOpen && userId) {
@@ -46,13 +168,6 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     const iBlockedInStore = usersYouBlocked.has(userId);
     const blockedByInStore = blockedByUsers.has(userId);
 
-    console.log('[UserProfileViewer] Store block status changed:', {
-      userId,
-      iBlockedInStore,
-      blockedByInStore,
-    });
-
-    // Update local state if store has different values
     if (iBlockedInStore !== iBlockedThem) {
       setIBlockedThem(iBlockedInStore);
     }
@@ -66,8 +181,6 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     setError(null);
     try {
       const profile = await userService.getUserProfile(userId);
-      console.log('[UserProfileViewer] Loaded profile:', profile);
-      console.log('[UserProfileViewer] Bio field:', profile.bio);
       setUser(profile);
     } catch (err: any) {
       console.error('[UserProfileViewer] Error loading profile:', err);
@@ -81,12 +194,10 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     setIsCheckingBlockStatus(true);
     try {
       const status = await userService.getMutualBlockStatus(userId);
-      console.log('[UserProfileViewer] Block status:', status);
       setIBlockedThem(status.iBlockedThem);
       setTheyBlockedMe(status.theyBlockedMe);
     } catch (err) {
       console.error('[UserProfileViewer] Error checking block status:', err);
-      // Default to not blocked on error
       setIBlockedThem(false);
       setTheyBlockedMe(false);
     } finally {
@@ -126,7 +237,8 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
       message: `Are you sure you want to unblock ${user?.username || 'this user'}? They will be able to message you again.`,
       confirmText: 'Unblock',
       cancelText: 'Cancel',
-      variant: 'info',
+      variant: 'success',
+      icon: 'success',
     });
 
     if (confirmed) {
@@ -135,45 +247,28 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     }
   };
 
-  // Check if messaging is blocked (either direction)
   const isMessagingBlocked = iBlockedThem || theyBlockedMe;
-
   const online = user ? isUserOnline(user.id) : false;
-
-  // Custom scrollbar styles
-  const scrollbarStyles = `
-    .userProfileScrollContainer::-webkit-scrollbar {
-      width: 6px;
-    }
-    .userProfileScrollContainer::-webkit-scrollbar-track {
-      background: rgba(99, 102, 241, 0.1);
-      border-radius: 3px;
-    }
-    .userProfileScrollContainer::-webkit-scrollbar-thumb {
-      background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-      border-radius: 3px;
-    }
-    .userProfileScrollContainer::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(180deg, #764ba2 0%, #667eea 100%);
-    }
-  `;
+  const lastSeen = user ? getUserLastSeen(user.id) : undefined;
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
+          className="user-profile-modal-overlay"
+          variants={overlayVariants}
+          initial="hidden"
+          animate="visible"
+          exit="hidden"
+          transition={{ duration: 0.2 }}
           style={{
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -182,22 +277,21 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
           }}
           onClick={onClose}
         >
-          <style>{scrollbarStyles}</style>
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.15 }}
+            variants={modalVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             style={{
-              background: '#1e293b',
+              background: colors.surface,
               borderRadius: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              maxWidth: '400px',
+              border: `1px solid ${colors.border}`,
+              maxWidth: '420px',
               width: '100%',
               maxHeight: '85vh',
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
               overflow: 'hidden',
             }}
             onClick={(e) => e.stopPropagation()}
@@ -205,48 +299,47 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
             {/* Header */}
             <div
               style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '20px 24px',
+                borderBottom: `1px solid ${colors.border}`,
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
+                background: colors.bg,
               }}
             >
               <h2 style={{
                 margin: 0,
                 fontSize: '18px',
-                fontWeight: 600,
-                color: '#f1f5f9',
+                fontWeight: 700,
+                color: colors.text,
+                letterSpacing: '-0.02em',
               }}>
                 User Profile
               </h2>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.1, backgroundColor: colors.surfaceHover }}
+                whileTap={{ scale: 0.9 }}
                 onClick={onClose}
                 aria-label="Close"
                 style={{
-                  background: 'none',
+                  background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  padding: '4px',
+                  padding: '8px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#94a3b8',
-                  transition: 'color 0.15s ease',
-                  fontSize: '24px',
-                  fontWeight: 300,
-                  lineHeight: 1,
+                  borderRadius: '8px',
+                  color: colors.textMuted,
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#f1f5f9'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
               >
-                ×
-              </button>
+                <X size={20} />
+              </motion.button>
             </div>
 
             {/* Content */}
             <div
-              className="userProfileScrollContainer"
+              className="user-profile-modal-content"
               style={{
                 overflowY: 'auto',
                 flex: 1,
@@ -257,7 +350,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                 <div style={{
                   textAlign: 'center',
                   padding: '60px 20px',
-                  color: '#94a3b8'
+                  color: colors.textMuted
                 }}>
                   <motion.div
                     animate={{ rotate: 360 }}
@@ -265,8 +358,8 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                     style={{
                       width: '40px',
                       height: '40px',
-                      border: '3px solid rgba(99, 102, 241, 0.2)',
-                      borderTopColor: '#818cf8',
+                      border: `3px solid ${colors.border}`,
+                      borderTopColor: colors.primary,
                       borderRadius: '50%',
                       margin: '0 auto 16px',
                     }}
@@ -279,80 +372,91 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                 <div style={{
                   textAlign: 'center',
                   padding: '60px 20px',
-                  color: '#f87171'
+                  color: colors.danger,
+                  backgroundColor: colors.dangerMuted,
+                  borderRadius: '12px',
                 }}>
                   {error}
                 </div>
               )}
 
               {!isLoading && !error && user && (
-                <>
+                <motion.div
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                >
                   {/* Avatar and Basic Info */}
-                  <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                  <motion.div variants={staggerItem} style={{ textAlign: 'center', marginBottom: '24px' }}>
                     <div style={{ position: 'relative', display: 'inline-block', marginBottom: '16px' }}>
                       {user.avatar ? (
                         <img
                           src={user.avatar}
                           alt={user.username}
                           style={{
-                            width: '100px',
-                            height: '100px',
+                            width: '120px',
+                            height: '120px',
                             borderRadius: '50%',
                             objectFit: 'cover',
-                            border: '3px solid rgba(255, 255, 255, 0.1)',
+                            border: `3px solid ${online ? colors.primary : colors.border}`,
+                            boxShadow: online ? `0 0 30px ${colors.primaryMuted}` : 'none',
                           }}
                         />
                       ) : (
                         <div
                           style={{
-                            width: '100px',
-                            height: '100px',
+                            width: '120px',
+                            height: '120px',
                             borderRadius: '50%',
-                            background: '#6366f1',
+                            background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryHover} 100%)`,
                             color: 'white',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '40px',
-                            fontWeight: 600,
+                            fontSize: '48px',
+                            fontWeight: 700,
+                            boxShadow: `0 0 30px ${colors.primaryMuted}`,
                           }}
                         >
                           {user.username.charAt(0).toUpperCase()}
                         </div>
                       )}
-                      {/* Online status */}
+                      {/* Online Indicator */}
                       <div
                         style={{
                           position: 'absolute',
-                          bottom: '4px',
-                          right: '4px',
-                          width: '20px',
-                          height: '20px',
+                          bottom: '6px',
+                          right: '6px',
+                          width: '24px',
+                          height: '24px',
                           borderRadius: '50%',
-                          background: online ? '#22c55e' : '#64748b',
-                          border: '3px solid #1e293b',
+                          background: online ? colors.primary : colors.textMuted,
+                          border: `3px solid ${colors.surface}`,
+                          boxShadow: online ? `0 0 12px ${colors.primary}` : 'none',
                         }}
                       />
                     </div>
 
                     <h3 style={{
                       margin: '0 0 8px 0',
-                      fontSize: '20px',
-                      fontWeight: 600,
-                      color: '#f1f5f9'
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      color: colors.text,
+                      letterSpacing: '-0.02em',
                     }}>
                       {user.username}
                     </h3>
 
-                    {/* Online Status */}
+                    {/* Online Status Badge */}
                     <div
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        background: online ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.15)',
+                        gap: '8px',
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        background: online ? colors.primaryMuted : colors.surfaceElevated,
+                        border: `1px solid ${online ? `${colors.primary}30` : colors.border}`,
                       }}
                     >
                       <div
@@ -360,34 +464,37 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                           width: '8px',
                           height: '8px',
                           borderRadius: '50%',
-                          background: online ? '#22c55e' : '#64748b',
+                          background: online ? colors.primary : colors.textMuted,
+                          boxShadow: online ? `0 0 8px ${colors.primary}` : 'none',
                         }}
                       />
                       <span style={{
                         fontSize: '13px',
-                        fontWeight: 500,
-                        color: online ? '#4ade80' : '#94a3b8'
+                        fontWeight: 600,
+                        color: online ? colors.primary : colors.textMuted
                       }}>
-                        {online ? 'Online' : 'Offline'}
+                        {online ? 'Online' : lastSeen ? `Last seen ${formatLastSeen(lastSeen)}` : 'Offline'}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
 
-                  {/* Bio - Always show section */}
-                  <div
+                  {/* Bio Section */}
+                  <motion.div
+                    variants={staggerItem}
                     style={{
-                      padding: '14px',
-                      background: 'rgba(255, 255, 255, 0.05)',
+                      padding: '16px',
+                      background: colors.surfaceElevated,
                       borderRadius: '12px',
                       marginBottom: '16px',
+                      border: `1px solid ${colors.border}`,
                     }}
                   >
                     <h4
                       style={{
-                        margin: '0 0 8px 0',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#94a3b8',
+                        margin: '0 0 10px 0',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: colors.primary,
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px',
                       }}
@@ -397,133 +504,195 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                     <p style={{
                       margin: 0,
                       fontSize: '14px',
-                      color: '#cbd5e1',
-                      lineHeight: '1.5'
+                      color: user.bio ? colors.textSecondary : colors.textMuted,
+                      lineHeight: '1.6',
+                      fontStyle: user.bio ? 'normal' : 'italic',
                     }}>
-                      {user.bio || <span style={{ color: '#64748b', fontStyle: 'italic' }}>No bio set</span>}
+                      {user.bio || 'No bio set'}
                     </p>
-                  </div>
+                  </motion.div>
+
+                  {/* User Info Cards */}
+                  {user.email && (
+                    <motion.div
+                      variants={staggerItem}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '14px 16px',
+                        background: colors.surfaceElevated,
+                        borderRadius: '12px',
+                        marginBottom: '12px',
+                        border: `1px solid ${colors.border}`,
+                      }}
+                    >
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: colors.primaryMuted,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Mail size={18} color={colors.primary} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: colors.textMuted, marginBottom: '2px' }}>Email</div>
+                        <div style={{ fontSize: '14px', color: colors.text, fontWeight: 500 }}>{user.email}</div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {user.createdAt && (
+                    <motion.div
+                      variants={staggerItem}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '14px 16px',
+                        background: colors.surfaceElevated,
+                        borderRadius: '12px',
+                        marginBottom: '16px',
+                        border: `1px solid ${colors.border}`,
+                      }}
+                    >
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: colors.primaryMuted,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Calendar size={18} color={colors.primary} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: colors.textMuted, marginBottom: '2px' }}>Member Since</div>
+                        <div style={{ fontSize: '14px', color: colors.text, fontWeight: 500 }}>
+                          {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* Block Status Banner */}
                   {!isCheckingBlockStatus && (theyBlockedMe || iBlockedThem) && (
-                    <div
+                    <motion.div
+                      variants={staggerItem}
                       style={{
-                        padding: '12px 14px',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        borderRadius: '10px',
+                        padding: '14px 16px',
+                        background: colors.dangerMuted,
+                        borderRadius: '12px',
                         marginBottom: '16px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
+                        gap: '12px',
+                        border: `1px solid ${colors.danger}30`,
                       }}
                     >
-                      <Ban size={18} color="#f87171" />
-                      <span style={{ fontSize: '14px', color: '#f87171' }}>
+                      <Ban size={20} color={colors.danger} />
+                      <span style={{ fontSize: '14px', color: colors.danger, fontWeight: 500 }}>
                         {theyBlockedMe && iBlockedThem
                           ? 'You have blocked each other'
                           : theyBlockedMe
                           ? 'This user has blocked you'
                           : 'You have blocked this user'}
                       </span>
-                    </div>
+                    </motion.div>
                   )}
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
-                    {/* Send Message button - disabled if blocked */}
+                  <motion.div variants={staggerItem} style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
+                    {/* Send Message button */}
                     {onSendMessage && (
-                      <button
+                      <motion.button
+                        whileHover={!isMessagingBlocked ? { scale: 1.02 } : {}}
+                        whileTap={!isMessagingBlocked ? { scale: 0.98 } : {}}
                         onClick={handleSendMessage}
                         disabled={isMessagingBlocked || isCheckingBlockStatus}
                         style={{
                           width: '100%',
-                          padding: '12px 16px',
-                          background: isMessagingBlocked ? '#4b5563' : '#6366f1',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '10px',
+                          padding: '14px 20px',
+                          background: isMessagingBlocked ? colors.surfaceElevated : colors.primary,
+                          color: isMessagingBlocked ? colors.textMuted : 'white',
+                          border: isMessagingBlocked ? `1px solid ${colors.border}` : 'none',
+                          borderRadius: '12px',
                           cursor: isMessagingBlocked ? 'not-allowed' : 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 500,
+                          fontSize: '15px',
+                          fontWeight: 600,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '8px',
-                          transition: 'background 0.15s ease',
+                          gap: '10px',
                           opacity: isMessagingBlocked ? 0.6 : 1,
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isMessagingBlocked) e.currentTarget.style.background = '#5558e3';
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isMessagingBlocked) e.currentTarget.style.background = '#6366f1';
+                          boxShadow: isMessagingBlocked ? 'none' : `0 0 20px ${colors.primaryMuted}`,
                         }}
                       >
-                        <MessageCircle size={18} />
+                        <MessageCircle size={20} />
                         {isMessagingBlocked ? 'Cannot Message' : 'Send Message'}
-                      </button>
+                      </motion.button>
                     )}
 
                     {/* Block/Unblock button */}
                     {iBlockedThem ? (
-                      // Show Unblock button if I blocked them
                       onUnblockUser && (
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={handleUnblock}
                           style={{
                             width: '100%',
-                            padding: '12px 16px',
-                            background: 'rgba(34, 197, 94, 0.1)',
-                            color: '#4ade80',
-                            border: '1px solid rgba(34, 197, 94, 0.2)',
-                            borderRadius: '10px',
+                            padding: '14px 20px',
+                            background: colors.primaryMuted,
+                            color: colors.primary,
+                            border: `1px solid ${colors.primary}30`,
+                            borderRadius: '12px',
                             cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: 500,
+                            fontSize: '15px',
+                            fontWeight: 600,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '8px',
-                            transition: 'background 0.15s ease',
+                            gap: '10px',
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)'}
                         >
-                          <UserCheck size={18} />
+                          <UserCheck size={20} />
                           Unblock User
-                        </button>
+                        </motion.button>
                       )
                     ) : (
-                      // Show Block button if I haven't blocked them
                       onBlockUser && (
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           onClick={handleBlock}
                           style={{
                             width: '100%',
-                            padding: '12px 16px',
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            color: '#f87171',
-                            border: '1px solid rgba(239, 68, 68, 0.2)',
-                            borderRadius: '10px',
+                            padding: '14px 20px',
+                            background: colors.dangerMuted,
+                            color: colors.danger,
+                            border: `1px solid ${colors.danger}30`,
+                            borderRadius: '12px',
                             cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: 500,
+                            fontSize: '15px',
+                            fontWeight: 600,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '8px',
-                            transition: 'background 0.15s ease',
+                            gap: '10px',
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
                         >
-                          <UserX size={18} />
+                          <UserX size={20} />
                           Block User
-                        </button>
+                        </motion.button>
                       )
                     )}
-                  </div>
-                </>
+                  </motion.div>
+                </motion.div>
               )}
             </div>
           </motion.div>

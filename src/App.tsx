@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import Dashboard from './components/Dashboard';
+import { DashboardLayout } from './components/DashboardLayout';
 import { useAuthStore } from './stores/authStore';
 import { signalRService } from './services/signalr.service';
 import { useChatStore } from './stores/chatStore';
@@ -24,21 +25,21 @@ function AppRoutes() {
       {/* Landing Page */}
       <Route
         path="/"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LandingPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <LandingPage />}
       />
 
       {/* Public Routes */}
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <LoginPage />}
       />
       <Route
         path="/register"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <RegisterPage />}
       />
       <Route
         path="/forgot-password"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <ForgotPasswordPage />}
       />
 
       {/* Protected Routes */}
@@ -47,6 +48,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Dashboard Layout Preview (New Design) */}
+      <Route
+        path="/dashboard-new"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
           </ProtectedRoute>
         }
       />
@@ -73,9 +84,12 @@ function App() {
 
   // Initialize auth on mount
   useEffect(() => {
-    console.log('[App] Initializing auth from localStorage...');
-    useAuthStore.getState().initializeAuth();
-    console.log('[App] Auth initialization complete');
+    const initAuth = async () => {
+      console.log('[App] Initializing auth from localStorage...');
+      await useAuthStore.getState().initializeAuth();
+      console.log('[App] Auth initialization complete');
+    };
+    initAuth();
   }, []);
 
   // Initialize SignalR when authenticated

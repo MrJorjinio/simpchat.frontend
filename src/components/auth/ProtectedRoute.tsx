@@ -11,8 +11,8 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
   console.log('[ProtectedRoute] Current state:', { isAuthenticated, isLoading, initialized });
 
-  // Show loading while checking auth OR while logging in
-  if (isLoading) {
+  // Show loading while checking auth OR while initializing OR while logging in
+  if (isLoading || !initialized) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--background)', color: 'var(--text)' }}>
         <div>Loading...</div>

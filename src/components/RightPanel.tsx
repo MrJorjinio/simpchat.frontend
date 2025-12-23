@@ -9,7 +9,7 @@ import { getInitials, fixMinioUrl } from '../utils/helpers';
 import { getBanErrorMessage, extractErrorMessage } from '../utils/errorHandler';
 import { AddMemberModal } from './ChatView';
 import { PermissionModal } from './modals/PermissionModal';
-import { toast } from './common/Toast';
+// Toast removed - using visual feedback instead
 import { confirm } from './common/ConfirmModal';
 import { usePermissions } from '../hooks/usePermission';
 import styles from './Dashboard.module.css';
@@ -169,17 +169,14 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
         await userService.unblockUser(otherUser.id);
         // Update store immediately for instant UI feedback
         removeBlockedUser(otherUser.id);
-        toast.success(`${otherUser.username} has been unblocked`);
       } else {
         await userService.blockUser(otherUser.id);
         // Update store immediately for instant UI feedback
         addBlockedUser(otherUser.id);
-        toast.success(`${otherUser.username} has been blocked`);
       }
       setIsUserBlocked(!isUserBlocked);
     } catch (error) {
       console.error(`Failed to ${action} user:`, error);
-      toast.error(extractErrorMessage(error, `Failed to ${action} user`));
     } finally {
       setIsBlockingUser(false);
     }
@@ -195,6 +192,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
       confirmText: 'Delete',
       cancelText: 'Cancel',
       variant: 'danger',
+      icon: 'delete',
     });
 
     if (!confirmed) return;
@@ -202,11 +200,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
     setIsDeletingConversation(true);
     try {
       await chatService.deleteConversation(currentChat.id);
-      toast.success('Conversation deleted');
       onConversationDeleted?.();
     } catch (error) {
       console.error('Failed to delete conversation:', error);
-      toast.error(extractErrorMessage(error, 'Failed to delete conversation'));
     } finally {
       setIsDeletingConversation(false);
     }
@@ -222,6 +218,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
       confirmText: 'Delete & Block',
       cancelText: 'Cancel',
       variant: 'danger',
+      icon: 'ban',
     });
 
     if (!confirmed) return;
@@ -231,11 +228,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
       // First delete the conversation, then block the user
       await chatService.deleteConversation(currentChat.id);
       await userService.blockUser(otherUser.id);
-      toast.success(`Conversation deleted and ${otherUser.username} blocked`);
       onConversationDeleted?.();
     } catch (error) {
       console.error('Failed to delete and block:', error);
-      toast.error(extractErrorMessage(error, 'Failed to delete and block'));
     } finally {
       setIsDeletingConversation(false);
     }
@@ -258,17 +253,16 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
       confirmText: 'Ban',
       cancelText: 'Cancel',
       variant: 'danger',
+      icon: 'ban',
     });
 
     if (!confirmed) return;
 
     try {
       await chatService.banUser(currentChat.id, member.userId);
-      toast.success(`${member.user.username} has been banned and removed from chat.`);
       await onReloadChat();
     } catch (error) {
       console.error('Failed to ban user:', error);
-      toast.error(getBanErrorMessage(error));
     }
   };
 
@@ -281,6 +275,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
       confirmText: 'Change',
       cancelText: 'Cancel',
       variant: 'info',
+      icon: 'shield',
     });
 
     if (!confirmed) return;
@@ -288,11 +283,9 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
     setIsTogglingPrivacy(true);
     try {
       await chatService.updateChatPrivacy(currentChat.id, newPrivacy);
-      toast.success(`Chat privacy changed to ${newPrivacy}.`);
       await onReloadChat();
     } catch (error) {
       console.error('Failed to update privacy:', error);
-      toast.error('Failed to update privacy. You may not have permission.');
     } finally {
       setIsTogglingPrivacy(false);
     }

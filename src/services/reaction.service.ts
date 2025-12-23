@@ -39,9 +39,8 @@ export const reactionService = {
    */
   createReaction: async (formData: FormData): Promise<string> => {
     try {
-      const response = await api.post<any>('/reactions', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Don't set Content-Type header - axios will set it automatically with correct boundary
+      const response = await api.post<any>('/reactions', formData);
       return response.data?.data || response.data;
     } catch (error) {
       console.error('Error creating reaction:', error);
@@ -56,9 +55,8 @@ export const reactionService = {
    */
   updateReaction: async (reactionId: string, formData: FormData): Promise<void> => {
     try {
-      const response = await api.put<any>(`/reactions/${reactionId}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Don't set Content-Type header - axios will set it automatically with correct boundary
+      const response = await api.put<any>(`/reactions/${reactionId}`, formData);
       return response.data?.data || response.data;
     } catch (error) {
       console.error('Error updating reaction:', error);

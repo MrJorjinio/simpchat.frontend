@@ -29,7 +29,7 @@ export const LoginForm = () => {
 
       if (state.token && state.user) {
         console.log('[LoginForm] Auth state verified, navigating to dashboard...');
-        navigate('/dashboard');
+        navigate('/dashboard-new');
       } else {
         console.error('[LoginForm] Login completed but auth state not set!');
       }

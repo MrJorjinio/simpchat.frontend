@@ -11,7 +11,7 @@ import { PinnedMessagesPanel } from './PinnedMessagesPanel';
 import { usePermissions } from '../hooks/usePermission';
 import { getInitials, formatTime, fixMinioUrl } from '../utils/helpers';
 import { extractErrorMessage, isUserBlockError, isBlockedByUser, getUserBlockErrorMessage } from '../utils/errorHandler';
-import { toast } from './common/Toast';
+// Toast removed - using visual feedback instead
 import { confirm } from './common/ConfirmModal';
 import styles from './Dashboard.module.css';
 
@@ -84,12 +84,10 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
       } else if (chatType === 'channel') {
         await chatService.addMemberToChannel(chatId, userId);
       }
-      toast.success(`${username} has been added to the chat.`);
       await onMemberAdded();
       onClose();
     } catch (error) {
       console.error('Failed to add member:', error);
-      toast.error(extractErrorMessage(error, 'Failed to add member'));
     } finally {
       setIsAdding(false);
     }
@@ -281,7 +279,6 @@ export const PermissionModal: React.FC<PermissionModalProps> = ({
       await onPermissionsChanged();
     } catch (error) {
       console.error('Failed to update permission:', error);
-      toast.error(extractErrorMessage(error, 'Failed to update permission'));
     } finally {
       setIsUpdating(false);
     }
@@ -696,9 +693,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
         } else {
           setDidIBlockUser(true);
         }
-        toast.error(getUserBlockErrorMessage(error));
-      } else {
-        toast.error(extractErrorMessage(error, 'Failed to send message'));
       }
     } finally {
       setSending(false);
@@ -716,7 +710,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     } catch (error) {
       console.error('Failed to toggle reaction:', error);
-      toast.error('Failed to add reaction');
     }
   };
 
@@ -734,10 +727,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const chatStore = useChatStore.getState();
       await chatStore.pinMessage(messageId);
       setContextMenu(null);
-      toast.success('Message pinned');
     } catch (error) {
       console.error('Failed to pin message:', error);
-      toast.error(extractErrorMessage(error, 'Failed to pin message'));
     }
   };
 
@@ -746,10 +737,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const chatStore = useChatStore.getState();
       await chatStore.unpinMessage(messageId);
       setContextMenu(null);
-      toast.success('Message unpinned');
     } catch (error) {
       console.error('Failed to unpin message:', error);
-      toast.error(extractErrorMessage(error, 'Failed to unpin message'));
     }
   };
 
@@ -774,15 +763,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const handleSaveEdit = async (messageId: string) => {
     if (editingContent.trim()) {
       try {
-        const messageService = await import('../services/message.service').then((m) => m.messageService);
-        await messageService.editMessage(messageId, editingContent);
+        // Use chatStore.editMessage which updates the message in place
+        // This avoids reloading all messages and prevents blank page
+        const chatStore = useChatStore.getState();
+        await chatStore.editMessage(messageId, editingContent);
         setEditingMessageId(null);
         setEditingContent('');
-        // Reload messages
-        const chatStore = useChatStore.getState();
-        if (currentChat) {
-          await chatStore.loadMessages(currentChat.id);
-        }
       } catch (error) {
         console.error('Failed to edit message:', error);
       }
@@ -813,10 +799,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         if (currentChat) {
           await chatStore.loadMessages(currentChat.id);
         }
-        toast.success('Message deleted');
       } catch (error) {
         console.error('Failed to delete message:', error);
-        toast.error('Failed to delete message');
       }
     }
   };
