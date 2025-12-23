@@ -1,18 +1,240 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Calendar, Crown, Shield, Edit2, Trash2, LogOut, Key, Settings, UserPlus, Ban } from 'lucide-react';
+import {
+  Users, Calendar, Crown, Shield, Edit2, Trash2, LogOut,
+  Key, UserPlus, Ban, X, Lock, Globe, Search, Radio,
+  ChevronRight, UserMinus, Eye, EyeOff, Check, AlertCircle,
+  Loader2, User
+} from 'lucide-react';
 import type { Chat, ChatMember } from '../../types/api.types';
 import { chatService } from '../../services/chat.service';
+import { userService } from '../../services/user.service';
 import { useChatStore } from '../../stores/chatStore';
 import { signalRService } from '../../services/signalr.service';
 import { OnlineStatusIndicator } from '../common/OnlineStatusIndicator';
 import { usePermissions } from '../../hooks/usePermission';
-import { formatLastSeen } from '../../utils/helpers';
-import { toast } from '../common/Toast';
+import { formatLastSeen, getInitials, fixMinioUrl } from '../../utils/helpers';
 import { confirm } from '../common/ConfirmModal';
 import { isBanError, getBanErrorMessage, extractErrorMessage } from '../../utils/errorHandler';
 import { PermissionModal } from './PermissionModal';
 
+// ============================================================================
+// DESIGN SYSTEM - Refined Noir Theme with Emerald Accents
+// ============================================================================
+const colors = {
+  // Backgrounds - Deep noir palette
+  bg: '#030303',
+  surface: '#080808',
+  surfaceElevated: '#0c0c0c',
+  surfaceHover: '#121212',
+  surfaceActive: '#181818',
+
+  // Borders - Subtle definition
+  border: '#1a1a1a',
+  borderLight: '#222222',
+  borderFocus: '#10b981',
+
+  // Primary - Emerald accent
+  primary: '#10b981',
+  primaryHover: '#0d9668',
+  primaryMuted: 'rgba(16, 185, 129, 0.12)',
+  primaryGlow: 'rgba(16, 185, 129, 0.25)',
+
+  // Semantic colors
+  danger: '#ef4444',
+  dangerHover: '#dc2626',
+  dangerMuted: 'rgba(239, 68, 68, 0.12)',
+  warning: '#f59e0b',
+  warningMuted: 'rgba(245, 158, 11, 0.12)',
+  info: '#3b82f6',
+  infoMuted: 'rgba(59, 130, 246, 0.12)',
+
+  // Text hierarchy
+  text: '#fafafa',
+  textSecondary: '#a1a1aa',
+  textMuted: '#71717a',
+  textDisabled: '#52525b',
+
+  // Online status
+  online: '#22c55e',
+  offline: '#71717a',
+};
+
+// Custom emerald cursor SVG data URLs
+const cursorDefault = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Cpath fill='%2310b981' d='M5.5 3.21V20.8l4.75-4.73 2.99 6.73L15.5 21.6l-3-6.7h6z'/%3E%3Cpath fill='%23064e3b' d='M6.5 5.61v11.68l3.38-3.37.37-.37.48 1.07 1.93 4.35 1.07-.47L11.8 14.1l-.48-1.07H16z'/%3E%3C/svg%3E") 4 2, default`;
+const cursorPointer = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Cpath fill='%2310b981' d='M9 2.5a2.5 2.5 0 0 1 5 0v7.996l3.904-.74a2.095 2.095 0 0 1 2.537 2.466L19.5 17.5a6 6 0 0 1-6 6H11a7 7 0 0 1-7-7V9a2 2 0 1 1 4 0v3.5h1z'/%3E%3Cpath fill='%23064e3b' d='M10 2.5V14h-.5a1.5 1.5 0 0 1-1.5-1.5V9a1 1 0 1 0-2 0v7.5a6 6 0 0 0 6 6h2.5a5 5 0 0 0 5-5l.941-5.278a1.095 1.095 0 0 0-1.324-1.288l-4.117.78V2.5a1.5 1.5 0 0 0-3 0z'/%3E%3C/svg%3E") 7 3, pointer`;
+
+// Inject global styles once
+const globalStyleId = 'group-profile-modal-styles';
+if (typeof document !== 'undefined' && !document.getElementById(globalStyleId)) {
+  const styleEl = document.createElement('style');
+  styleEl.id = globalStyleId;
+  styleEl.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    .gpm-overlay {
+      cursor: ${cursorDefault};
+    }
+    .gpm-overlay * {
+      cursor: inherit;
+    }
+    .gpm-overlay button,
+    .gpm-overlay a,
+    .gpm-overlay [role="button"],
+    .gpm-overlay .gpm-clickable {
+      cursor: ${cursorPointer} !important;
+    }
+    .gpm-overlay input[type="text"],
+    .gpm-overlay input[type="search"],
+    .gpm-overlay textarea {
+      cursor: text !important;
+    }
+
+    .gpm-scrollable::-webkit-scrollbar {
+      width: 6px;
+    }
+    .gpm-scrollable::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .gpm-scrollable::-webkit-scrollbar-thumb {
+      background: ${colors.primary};
+      border-radius: 3px;
+    }
+    .gpm-scrollable::-webkit-scrollbar-thumb:hover {
+      background: ${colors.primaryHover};
+    }
+
+    .gpm-scrollable {
+      scrollbar-width: thin;
+      scrollbar-color: ${colors.primary} transparent;
+    }
+
+    @keyframes gpm-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes gpm-glow {
+      0%, 100% { box-shadow: 0 0 20px ${colors.primaryGlow}; }
+      50% { box-shadow: 0 0 40px ${colors.primaryGlow}; }
+    }
+
+    @keyframes matrix-fall {
+      0% { transform: translateY(-100%); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(100%); opacity: 0; }
+    }
+
+    @keyframes matrix-flicker {
+      0%, 100% { opacity: 0.1; }
+      50% { opacity: 0.4; }
+    }
+
+    @keyframes matrix-glow-pulse {
+      0%, 100% { filter: brightness(1) drop-shadow(0 0 2px ${colors.primary}); }
+      50% { filter: brightness(1.5) drop-shadow(0 0 6px ${colors.primary}); }
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap: 2px;
+      position: absolute;
+      inset: 0;
+      padding: 8px;
+      overflow: hidden;
+    }
+
+    .matrix-cell {
+      background: ${colors.primary};
+      opacity: 0.18;
+      border-radius: 2px;
+      transition: all 0.2s ease;
+      animation: matrix-flicker 2s ease-in-out infinite;
+      animation-delay: calc(var(--cell-index) * 0.02s);
+    }
+
+    .matrix-cell:nth-child(3n) {
+      opacity: 0.32;
+      animation-duration: 1.5s;
+      box-shadow: 0 0 3px ${colors.primary};
+    }
+
+    .matrix-cell:nth-child(5n) {
+      opacity: 0.42;
+      animation-duration: 1.8s;
+      box-shadow: 0 0 4px ${colors.primary};
+    }
+
+    .matrix-cell:nth-child(7n+1) {
+      opacity: 0.25;
+      animation-duration: 2.2s;
+    }
+
+    .matrix-cell:nth-child(11n) {
+      opacity: 0.55;
+      box-shadow: 0 0 6px ${colors.primary}, 0 0 10px ${colors.primary};
+      animation-duration: 1.2s;
+    }
+
+    .matrix-rain {
+      position: absolute;
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, ${colors.primary}, transparent);
+      pointer-events: none;
+      animation: matrix-fall 2s linear infinite;
+    }
+
+    .avatar-wrapper {
+      animation: matrix-glow-pulse 3s ease-in-out infinite;
+    }
+  `;
+  document.head.appendChild(styleEl);
+}
+
+// ============================================================================
+// ANIMATION VARIANTS - Fast and snappy
+// ============================================================================
+const overlayVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.15, ease: 'easeOut' } },
+  exit: { opacity: 0, transition: { duration: 0.1, ease: 'easeIn' } },
+};
+
+const modalVariants = {
+  hidden: { opacity: 0, scale: 0.98, y: 10 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.15, ease: 'easeOut' }
+  },
+  exit: { opacity: 0, scale: 0.98, y: 5, transition: { duration: 0.1, ease: 'easeIn' } },
+};
+
+// No stagger - instant content appearance
+const staggerContainer = {
+  hidden: { opacity: 1 },
+  visible: { opacity: 1 },
+};
+
+const staggerItem = {
+  hidden: { opacity: 1, x: 0 },
+  visible: { opacity: 1, x: 0 },
+};
+
+// Fast section transitions - minimal animation
+const slideIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.1, ease: 'easeOut' } },
+  exit: { opacity: 0, transition: { duration: 0.08, ease: 'easeIn' } },
+};
+
+// ============================================================================
+// TYPES
+// ============================================================================
 interface GroupProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -45,6 +267,495 @@ interface BannedUser {
   bannedAt: string;
 }
 
+type ViewMode = 'main' | 'members' | 'banned' | 'addMember';
+type FeedbackType = 'success' | 'error' | 'info' | null;
+
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
+// Inline Feedback Component (replaces toasts)
+const InlineFeedback: React.FC<{
+  type: FeedbackType;
+  message: string;
+  onDismiss: () => void;
+}> = ({ type, message, onDismiss }) => {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  if (!type) return null;
+
+  const bgColor = type === 'success' ? colors.primaryMuted :
+                  type === 'error' ? colors.dangerMuted : colors.infoMuted;
+  const textColor = type === 'success' ? colors.primary :
+                    type === 'error' ? colors.danger : colors.info;
+  const Icon = type === 'success' ? Check : type === 'error' ? AlertCircle : Eye;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -5, height: 0 }}
+      animate={{ opacity: 1, y: 0, height: 'auto' }}
+      exit={{ opacity: 0, y: -5, height: 0 }}
+      transition={{ duration: 0.1, ease: 'easeOut' }}
+      style={{
+        background: bgColor,
+        borderRadius: 8,
+        padding: '10px 14px',
+        marginBottom: 12,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        border: `1px solid ${textColor}20`,
+      }}
+    >
+      <Icon size={16} color={textColor} style={{ flexShrink: 0, minWidth: 16 }} />
+      <span style={{ flex: 1, fontSize: 13, color: textColor, fontWeight: 500 }}>{message}</span>
+      <button
+        onClick={onDismiss}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 4,
+          display: 'flex',
+          color: textColor,
+          opacity: 0.7,
+        }}
+        className="gpm-clickable"
+      >
+        <X size={14} style={{ flexShrink: 0, minWidth: 14 }} />
+      </button>
+    </motion.div>
+  );
+};
+
+// Privacy Badge Component
+const PrivacyBadge: React.FC<{ privacy: 'public' | 'private'; size?: 'sm' | 'md' }> = ({
+  privacy,
+  size = 'md'
+}) => {
+  const isPublic = privacy === 'public';
+  const iconSize = size === 'sm' ? 12 : 14;
+  const padding = size === 'sm' ? '4px 8px' : '6px 12px';
+  const fontSize = size === 'sm' ? 11 : 12;
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding,
+        borderRadius: 20,
+        background: isPublic ? colors.primaryMuted : colors.warningMuted,
+        border: `1px solid ${isPublic ? colors.primary : colors.warning}30`,
+      }}
+    >
+      {isPublic ? (
+        <Globe size={iconSize} color={colors.primary} style={{ flexShrink: 0, minWidth: iconSize }} />
+      ) : (
+        <Lock size={iconSize} color={colors.warning} style={{ flexShrink: 0, minWidth: iconSize }} />
+      )}
+      <span style={{
+        fontSize,
+        fontWeight: 600,
+        color: isPublic ? colors.primary : colors.warning,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+      }}>
+        {isPublic ? 'Public' : 'Private'}
+      </span>
+    </div>
+  );
+};
+
+// Role Badge Component
+const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
+  const config = {
+    admin: { icon: Crown, color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.15)', label: 'Admin' },
+    moderator: { icon: Shield, color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.15)', label: 'Mod' },
+    member: { icon: User, color: colors.textMuted, bg: colors.surfaceHover, label: 'Member' },
+  }[role] || { icon: User, color: colors.textMuted, bg: colors.surfaceHover, label: role };
+
+  const IconComponent = config.icon;
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 8px',
+        borderRadius: 4,
+        background: config.bg,
+        border: `1px solid ${config.color}20`,
+      }}
+    >
+      <IconComponent size={11} color={config.color} style={{ flexShrink: 0, minWidth: 11 }} />
+      <span style={{ fontSize: 10, fontWeight: 600, color: config.color, textTransform: 'uppercase' }}>
+        {config.label}
+      </span>
+    </div>
+  );
+};
+
+// Matrix Background Component - Full panel background
+const MatrixBackground: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const cellCount = 180; // 15x12 grid for full panel
+  const rainDrops = 12;
+
+  return (
+    <div
+      className="matrix-container"
+      style={{
+        position: 'relative',
+        margin: '-20px -20px 24px -20px',
+        padding: '28px 20px',
+        borderRadius: '0 0 16px 16px',
+        background: `linear-gradient(180deg, ${colors.bg} 0%, ${colors.surface} 100%)`,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Matrix Grid - Full background */}
+      <div
+        className="matrix-grid"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(15, 1fr)',
+          gridTemplateRows: 'repeat(12, 1fr)',
+          gap: 3,
+          padding: 10,
+          opacity: 0.8,
+        }}
+      >
+        {Array.from({ length: cellCount }).map((_, i) => (
+          <div
+            key={i}
+            className="matrix-cell"
+            style={{ '--cell-index': i } as React.CSSProperties}
+          />
+        ))}
+      </div>
+
+      {/* Rain drops */}
+      {Array.from({ length: rainDrops }).map((_, i) => (
+        <div
+          key={`rain-${i}`}
+          className="matrix-rain"
+          style={{
+            left: `${5 + (i * 8)}%`,
+            height: '40%',
+            animationDelay: `${i * 0.15}s`,
+          }}
+        />
+      ))}
+
+      {/* Content wrapper */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          textAlign: 'center',
+        }}
+      >
+        {children}
+      </div>
+
+      {/* Top glow */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '60%',
+          background: `radial-gradient(ellipse at 50% 0%, ${colors.primary}15 0%, transparent 70%)`,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Bottom fade */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 40,
+          background: `linear-gradient(to top, ${colors.surface}, transparent)`,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Border glow */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '0 0 16px 16px',
+          border: `1px solid ${colors.primary}20`,
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
+  );
+};
+
+// Member Card Component
+const MemberCard: React.FC<{
+  member: ChatMember;
+  isOnline: boolean;
+  lastSeen?: string;
+  isCurrentUser: boolean;
+  canManage: boolean;
+  onViewProfile?: () => void;
+  onKick?: () => void;
+  onBan?: () => void;
+  onManagePermissions?: () => void;
+}> = ({ member, isOnline, lastSeen, isCurrentUser, canManage, onViewProfile, onKick, onBan, onManagePermissions }) => {
+  const [showActions, setShowActions] = useState(false);
+
+  return (
+    <motion.div
+      variants={staggerItem}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '12px 14px',
+        background: colors.surfaceElevated,
+        borderRadius: 10,
+        border: `1px solid ${colors.border}`,
+        transition: 'background 0.1s, border-color 0.1s',
+        position: 'relative',
+      }}
+      whileHover={{
+        background: colors.surfaceHover,
+        borderColor: colors.borderLight,
+        transition: { duration: 0.1 },
+      }}
+      onHoverStart={() => setShowActions(true)}
+      onHoverEnd={() => setShowActions(false)}
+    >
+      {/* Avatar */}
+      <div
+        className="gpm-clickable"
+        onClick={onViewProfile}
+        style={{ position: 'relative', marginRight: 12 }}
+      >
+        {member.user.avatar ? (
+          <img
+            src={fixMinioUrl(member.user.avatar)}
+            alt={member.user.username}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: `2px solid ${isOnline ? colors.online : colors.border}`,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: `linear-gradient(135deg, ${colors.primary}40, ${colors.primary}20)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: `2px solid ${isOnline ? colors.online : colors.border}`,
+              color: colors.primary,
+              fontWeight: 600,
+              fontSize: 16,
+            }}
+          >
+            {getInitials(member.user.username)}
+          </div>
+        )}
+        {/* Online indicator dot */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            width: 12,
+            height: 12,
+            borderRadius: '50%',
+            background: isOnline ? colors.online : colors.offline,
+            border: `2px solid ${colors.surfaceElevated}`,
+          }}
+        />
+      </div>
+
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+          <span
+            className="gpm-clickable"
+            onClick={onViewProfile}
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: colors.text,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {member.user.username}
+            {isCurrentUser && <span style={{ color: colors.textMuted, fontWeight: 400 }}> (you)</span>}
+          </span>
+          <RoleBadge role={member.role} />
+        </div>
+        <div style={{ fontSize: 12, color: colors.textMuted }}>
+          {isOnline ? (
+            <span style={{ color: colors.online }}>● Online</span>
+          ) : lastSeen ? (
+            `Last seen ${formatLastSeen(lastSeen)}`
+          ) : (
+            'Offline'
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <AnimatePresence>
+        {showActions && canManage && !isCurrentUser && member.role !== 'admin' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.08 }}
+            style={{ display: 'flex', gap: 6 }}
+          >
+            {onManagePermissions && (
+              <button
+                onClick={onManagePermissions}
+                className="gpm-clickable"
+                title="Manage Permissions"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  background: colors.infoMuted,
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: colors.info,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <Key size={16} strokeWidth={2.5} style={{ flexShrink: 0, minWidth: 16 }} />
+              </button>
+            )}
+            {onKick && (
+              <button
+                onClick={onKick}
+                className="gpm-clickable"
+                title="Remove Member"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  background: colors.warningMuted,
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: colors.warning,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <UserMinus size={16} strokeWidth={2.5} style={{ flexShrink: 0, minWidth: 16 }} />
+              </button>
+            )}
+            {onBan && (
+              <button
+                onClick={onBan}
+                className="gpm-clickable"
+                title="Ban Member"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  background: colors.dangerMuted,
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: colors.danger,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <Ban size={16} strokeWidth={2.5} style={{ flexShrink: 0, minWidth: 16 }} />
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+// Action Button Component
+const ActionButton: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  variant?: 'default' | 'danger' | 'primary';
+  disabled?: boolean;
+  loading?: boolean;
+}> = ({ icon, label, onClick, variant = 'default', disabled, loading }) => {
+  const bgColor = variant === 'danger' ? colors.dangerMuted :
+                  variant === 'primary' ? colors.primaryMuted : colors.surfaceHover;
+  const textColor = variant === 'danger' ? colors.danger :
+                    variant === 'primary' ? colors.primary : colors.text;
+  const hoverBg = variant === 'danger' ? colors.danger :
+                  variant === 'primary' ? colors.primary : colors.surfaceActive;
+  const hoverText = variant === 'danger' || variant === 'primary' ? '#fff' : colors.text;
+
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="gpm-clickable"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        width: '100%',
+        padding: '12px 16px',
+        background: bgColor,
+        border: `1px solid ${textColor}20`,
+        borderRadius: 10,
+        color: textColor,
+        fontSize: 14,
+        fontWeight: 500,
+        opacity: disabled ? 0.5 : 1,
+        transition: 'background 0.1s, color 0.1s',
+      }}
+      whileHover={!disabled ? {
+        background: hoverBg,
+        color: hoverText,
+        transition: { duration: 0.1 },
+      } : {}}
+      whileTap={!disabled ? { scale: 0.98, transition: { duration: 0.05 } } : {}}
+    >
+      {loading ? <Loader2 size={18} className="animate-spin" /> : icon}
+      <span>{label}</span>
+      <ChevronRight size={16} style={{ marginLeft: 'auto', opacity: 0.5, flexShrink: 0, minWidth: 16 }} />
+    </motion.button>
+  );
+};
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   isOpen,
   onClose,
@@ -56,1598 +767,937 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   onKickMember,
   onViewUserProfile,
   onBanMember,
+  onUnbanMember,
   onUpdatePrivacy,
 }) => {
+  // State
   const [profile, setProfile] = useState<ChatProfile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
-  const [filteredMembers, setFilteredMembers] = useState<ChatMember[]>([]);
-  const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberQuery, setAddMemberQuery] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
-  const [presenceLoaded, setPresenceLoaded] = useState(false);
-  const [showBannedUsers, setShowBannedUsers] = useState(false);
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [isLoadingBannedUsers, setIsLoadingBannedUsers] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: FeedbackType; message: string }>({ type: null, message: '' });
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [selectedMemberForPermissions, setSelectedMemberForPermissions] = useState<ChatMember | null>(null);
+  const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false);
 
   const { isUserOnline, getUserLastSeen, loadChats, setInitialPresenceStates } = useChatStore();
-
-  // Determine if current user is admin
-  const currentMember = profile?.members.find(m => m.userId === currentUserId);
-  const isAdmin = currentMember?.role === 'admin';
-
-  // Get permissions for current user
   const { canAddUsers, canManageChatInfo, canManageBans, canManageUsers } = usePermissions(chat?.id);
 
-  useEffect(() => {
-    if (isOpen && chat.id) {
-      setIsBanned(false); // Reset banned state when modal opens
-      setPresenceLoaded(false); // Reset presence state when modal opens
-      loadProfile();
-    }
-  }, [isOpen, chat.id]);
+  // Derived state
+  const currentMember = profile?.members.find(m => m.userId === currentUserId);
+  const isAdmin = currentMember?.role === 'admin';
+  const isMember = profile?.members.some(m => m.userId === currentUserId);
+  const onlineCount = profile?.members.filter(m => isUserOnline(m.userId)).length || 0;
 
+  // Filtered members
+  const filteredMembers = profile?.members.filter(member => {
+    if (!memberSearchQuery.trim()) return true;
+    const query = memberSearchQuery.toLowerCase();
+    return member.user.username.toLowerCase().includes(query) ||
+           member.user.email?.toLowerCase().includes(query);
+  }) || [];
+
+  // Show feedback helper
+  const showFeedback = (type: FeedbackType, message: string) => {
+    setFeedback({ type, message });
+  };
+
+  // Load profile
   const loadProfile = async () => {
     setIsLoading(true);
-    setError(null);
     try {
       const profileData = await chatService.getChatProfile(chat.id);
       setProfile(profileData as ChatProfile);
 
-      // Fetch presence states for all profile members
       const memberIds = (profileData as ChatProfile).members?.map(m => m.userId) || [];
       if (memberIds.length > 0) {
         try {
           const presenceStates = await signalRService.getPresenceStates(memberIds);
           if (Object.keys(presenceStates).length > 0) {
             setInitialPresenceStates(presenceStates);
-            setPresenceLoaded(true); // Trigger re-render with updated presence
           }
-        } catch (presenceError) {
-          console.error('[GroupProfileModal] Failed to fetch presence states:', presenceError);
+        } catch (e) {
+          console.error('Failed to fetch presence:', e);
         }
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load profile');
+      showFeedback('error', err.response?.data?.message || 'Failed to load profile');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Determine if current user is a member
-  const isMember = profile?.members.some(m => m.userId === currentUserId);
+  // Load banned users
+  const loadBannedUsers = async () => {
+    if (!chat?.id || (!isAdmin && !canManageBans)) return;
+    setIsLoadingBannedUsers(true);
+    try {
+      const banned = await chatService.getBannedUsers(chat.id);
+      setBannedUsers(banned);
+    } catch (e) {
+      showFeedback('error', 'Failed to load banned users');
+    } finally {
+      setIsLoadingBannedUsers(false);
+    }
+  };
 
+  useEffect(() => {
+    if (isOpen && chat.id) {
+      setIsBanned(false);
+      setViewMode('main');
+      loadProfile();
+    }
+  }, [isOpen, chat.id]);
+
+  useEffect(() => {
+    if (viewMode === 'banned' && (isAdmin || canManageBans)) {
+      loadBannedUsers();
+    }
+  }, [viewMode, isAdmin, canManageBans]);
+
+  // Handlers
   const handleJoin = async () => {
     if (!chat || !chat.type) return;
-
     setIsJoining(true);
     try {
-      const chatType = chat.type as 'group' | 'channel';
-      await chatService.joinChat(chat.id, chatType);
-      toast.success(`Successfully joined the ${chatType}!`);
-      await loadChats(); // Reload chats to update sidebar
-      await loadProfile(); // Reload profile to update member list
+      await chatService.joinChat(chat.id, chat.type as 'group' | 'channel');
+      showFeedback('success', `Successfully joined the ${chat.type}!`);
+      await loadChats();
+      await loadProfile();
     } catch (error: any) {
-      console.error('Failed to join:', error);
       if (isBanError(error)) {
         setIsBanned(true);
-        toast.error(getBanErrorMessage(error));
+        showFeedback('error', getBanErrorMessage(error));
       } else {
-        toast.error(extractErrorMessage(error, 'Failed to join'));
+        showFeedback('error', extractErrorMessage(error, 'Failed to join'));
       }
     } finally {
       setIsJoining(false);
     }
   };
 
-  const loadBannedUsers = async () => {
-    if (!chat?.id || (!isAdmin && !canManageBans)) return;
-
-    setIsLoadingBannedUsers(true);
-    try {
-      const banned = await chatService.getBannedUsers(chat.id);
-      setBannedUsers(banned);
-    } catch (error) {
-      console.error('[GroupProfileModal] Failed to load banned users:', error);
-      toast.error(extractErrorMessage(error, 'Failed to load banned users'));
-    } finally {
-      setIsLoadingBannedUsers(false);
-    }
-  };
-
-  const handleUnban = async (userId: string, username: string) => {
-    const confirmed = await confirm({
-      title: 'Unban User',
-      message: `Are you sure you want to unban ${username}? They will be able to rejoin this ${chat.type === 'channel' ? 'channel' : 'group'}.`,
-      confirmText: 'Unban',
-      cancelText: 'Cancel',
-      variant: 'info',
-    });
-
-    if (!confirmed) return;
-
-    try {
-      await chatService.unbanUser(chat.id, userId);
-      toast.success(`${username} has been unbanned`);
-      // Reload banned users list
-      await loadBannedUsers();
-    } catch (error) {
-      console.error('[GroupProfileModal] Failed to unban user:', error);
-      toast.error(extractErrorMessage(error, 'Failed to unban user'));
-    }
-  };
-
-  // Load banned users when showing the banned users section
-  useEffect(() => {
-    if (showBannedUsers && (isAdmin || canManageBans)) {
-      loadBannedUsers();
-    }
-  }, [showBannedUsers, isAdmin, canManageBans]);
-
-  // Filter members based on search query
-  useEffect(() => {
-    if (!profile?.members) {
-      setFilteredMembers([]);
-      return;
-    }
-
-    if (!memberSearchQuery.trim()) {
-      setFilteredMembers(profile.members);
-      return;
-    }
-
-    const query = memberSearchQuery.toLowerCase();
-    const filtered = profile.members.filter(member =>
-      member.user.username.toLowerCase().includes(query) ||
-      member.user.email?.toLowerCase().includes(query)
-    );
-
-    setFilteredMembers(filtered);
-  }, [profile?.members, memberSearchQuery]);
-
   const handleKick = async (userId: string) => {
     if (!onKickMember) return;
-
+    const member = profile?.members.find(m => m.userId === userId);
     const confirmed = await confirm({
       title: 'Remove Member',
-      message: 'Are you sure you want to remove this member from the group?',
+      message: `Remove ${member?.user.username || 'this member'} from the ${chat.type}?`,
       confirmText: 'Remove',
       cancelText: 'Cancel',
       variant: 'danger',
     });
-
     if (confirmed) {
-      // Immediately update local state for instant UI feedback
       setProfile(prev => prev ? {
         ...prev,
         members: prev.members.filter(m => m.userId !== userId)
       } : null);
-      // Then call the parent callback to perform the actual API call
+      showFeedback('success', `${member?.user.username} has been removed`);
       onKickMember(userId);
     }
   };
 
-  // Wrapper for ban that updates local state immediately
   const handleBan = async (userId: string) => {
     if (!onBanMember) return;
-    // Immediately update local state for instant UI feedback
-    setProfile(prev => prev ? {
-      ...prev,
-      members: prev.members.filter(m => m.userId !== userId)
-    } : null);
-    // Then call the parent callback to perform the actual API call
-    await onBanMember(userId);
+    const member = profile?.members.find(m => m.userId === userId);
+    const confirmed = await confirm({
+      title: 'Ban Member',
+      message: `Ban ${member?.user.username || 'this member'}? They won't be able to rejoin.`,
+      confirmText: 'Ban',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (confirmed) {
+      setProfile(prev => prev ? {
+        ...prev,
+        members: prev.members.filter(m => m.userId !== userId)
+      } : null);
+      showFeedback('success', `${member?.user.username} has been banned`);
+      await onBanMember(userId);
+    }
   };
 
-  const handleSearchUsers = async (query: string) => {
-    setAddMemberQuery(query);
-    if (!query.trim()) {
+  const handleUnban = async (userId: string, username: string) => {
+    if (!onUnbanMember) return;
+    const confirmed = await confirm({
+      title: 'Unban User',
+      message: `Unban ${username}? They will be able to rejoin.`,
+      confirmText: 'Unban',
+      cancelText: 'Cancel',
+      variant: 'info',
+    });
+    if (confirmed) {
+      try {
+        await onUnbanMember(userId);
+        setBannedUsers(prev => prev.filter(u => u.userId !== userId));
+        showFeedback('success', `${username} has been unbanned`);
+      } catch (e) {
+        showFeedback('error', 'Failed to unban user');
+      }
+    }
+  };
+
+  const handlePrivacyToggle = async () => {
+    if (!onUpdatePrivacy || !profile) return;
+    const newPrivacy = profile.privacy === 'public' ? 'private' : 'public';
+    const confirmed = await confirm({
+      title: `Make ${chat.type} ${newPrivacy}?`,
+      message: newPrivacy === 'private'
+        ? 'Only invited members will be able to join.'
+        : 'Anyone can find and join this chat.',
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
+      variant: 'info',
+    });
+    if (confirmed) {
+      setIsUpdatingPrivacy(true);
+      try {
+        await onUpdatePrivacy(newPrivacy);
+        setProfile(prev => prev ? { ...prev, privacy: newPrivacy } : null);
+        showFeedback('success', `${chat.type} is now ${newPrivacy}`);
+      } catch (e) {
+        showFeedback('error', 'Failed to update privacy');
+      } finally {
+        setIsUpdatingPrivacy(false);
+      }
+    }
+  };
+
+  // Debounced user search effect
+  useEffect(() => {
+    if (!addMemberQuery.trim()) {
       setUserSearchResults([]);
+      setIsSearchingUsers(false);
       return;
     }
 
     setIsSearchingUsers(true);
-    try {
-      const userService = await import('../../services/user.service').then(m => m.userService);
-      const results = await userService.searchUsers(query);
-      // Filter out users who are already members
-      const memberIds = new Set(profile?.members.map(m => m.userId) || []);
-      const filteredResults = results.filter((u: any) => !memberIds.has(u.id));
-      setUserSearchResults(filteredResults);
-    } catch (error) {
-      console.error('Failed to search users:', error);
-    } finally {
-      setIsSearchingUsers(false);
-    }
-  };
+    const debounceTimer = setTimeout(async () => {
+      try {
+        const results = await userService.searchUsers(addMemberQuery.trim());
+        const memberIds = new Set(profile?.members?.map(m => m.userId) || []);
+        setUserSearchResults(results.filter((u: any) => !memberIds.has(u.id)));
+      } catch (e) {
+        console.error('Search failed:', e);
+        setUserSearchResults([]);
+      } finally {
+        setIsSearchingUsers(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [addMemberQuery, profile?.members]);
 
   const handleAddMember = async (userId: string) => {
-    if (!chat || (!isAdmin && !canAddUsers)) return;
-
     try {
       if (chat.type === 'group') {
         await chatService.addMemberToGroup(chat.id, userId);
-      } else if (chat.type === 'channel') {
+      } else {
         await chatService.addMemberToChannel(chat.id, userId);
       }
-
-      toast.success('Member added successfully');
-      setShowAddMember(false);
+      showFeedback('success', 'Member added successfully');
       setAddMemberQuery('');
       setUserSearchResults([]);
-      await loadProfile(); // Reload to show new member
-    } catch (error: any) {
-      console.error('Failed to add member:', error);
-      if (isBanError(error)) {
-        toast.error('This user is banned from this chat and cannot be added.');
-      } else {
-        toast.error(extractErrorMessage(error, 'Failed to add member'));
-      }
+      await loadProfile();
+    } catch (e: any) {
+      showFeedback('error', extractErrorMessage(e, 'Failed to add member'));
     }
   };
 
-  const handleLeave = async () => {
-    if (!onLeaveGroup) return;
-
-    const confirmed = await confirm({
-      title: 'Leave Group',
-      message: 'Are you sure you want to leave this group? You will lose access to all messages and content.',
-      confirmText: 'Leave',
-      cancelText: 'Stay',
-      variant: 'warning',
-    });
-
-    if (confirmed) {
-      onLeaveGroup();
-      onClose();
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!onDeleteGroup) return;
-
-    const confirmed = await confirm({
-      title: 'Delete Group',
-      message: 'Are you sure you want to delete this group? This action cannot be undone and all messages will be permanently deleted.',
-      confirmText: 'Delete Forever',
-      cancelText: 'Cancel',
-      variant: 'danger',
-    });
-
-    if (confirmed) {
-      onDeleteGroup();
-      onClose();
-    }
-  };
-
-  // Group filtered members by role
-  const groupedMembers = {
-    admin: [] as ChatMember[],
-    moderator: [] as ChatMember[],
-    member: [] as ChatMember[],
-  };
-
-  filteredMembers.forEach(member => {
-    groupedMembers[member.role].push(member);
-  });
-
-  // Calculate online count directly from profile members (more reliable than store lookup)
-  // Note: presenceLoaded state change triggers re-render after presence states are fetched
-  const onlineCount = profile?.members.filter(m => isUserOnline(m.userId)).length || 0;
-  const totalMembers = profile?.members.length || 0;
-
-  // Debug log for online count
-  console.log('[GroupProfileModal] Online count:', onlineCount, 'Total members:', totalMembers, 'Presence loaded:', presenceLoaded);
+  const isChannel = chat.type === 'channel';
 
   return (
     <>
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-          onClick={onClose}
-        >
+      <AnimatePresence>
+        {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.15 }}
-            style={{
-              backgroundColor: 'var(--surface)',
-              borderRadius: '12px',
-              maxWidth: '600px',
-              width: '100%',
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.2)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-        {/* Header */}
-        <div
-          style={{
-            padding: '20px',
-            borderBottom: '1px solid var(--border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
-            {chat.type === 'channel' ? 'Channel' : 'Group'} Profile
-          </h2>
-          <button
+            className="gpm-overlay"
+            variants={overlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             onClick={onClose}
-            aria-label="Close"
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '8px',
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.85)',
+              backdropFilter: 'blur(8px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: '6px',
-              transition: 'background-color 0.2s',
-              fontSize: '24px',
-              fontWeight: 300,
-              lineHeight: 1,
-              color: 'var(--text)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--background)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
+              zIndex: 1000,
+              padding: 20,
             }}
           >
-            ×
-          </button>
-        </div>
-
-        {/* Content */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '20px' }}>
-          {isLoading && (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-              Loading profile...
-            </div>
-          )}
-
-          {error && (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#ff6b6b' }}>
-              {error}
-            </div>
-          )}
-
-          {!isLoading && !error && profile && (
-            <>
-              {/* Avatar and Basic Info */}
-              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                {profile.avatar ? (
-                  <img
-                    src={profile.avatar}
-                    alt={profile.name}
-                    style={{
-                      width: '120px',
-                      height: '120px',
-                      borderRadius: '50%',
-                      objectFit: 'cover',
-                      marginBottom: '16px',
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '120px',
-                      height: '120px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--accent)',
-                      color: 'white',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '48px',
-                      fontWeight: 700,
-                      marginBottom: '16px',
-                    }}
-                  >
-                    {profile.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <h3 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 700, color: 'var(--text)' }}>
-                  {profile.name}
-                </h3>
-                {profile.description && (
-                  <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                    {profile.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Stats */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                  gap: '12px',
-                  marginBottom: '24px',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px',
-                    backgroundColor: 'var(--background)',
-                    borderRadius: '8px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <Users size={20} color="var(--text-muted)" style={{ marginBottom: '4px' }} />
-                  <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
-                    {totalMembers}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Total Members</div>
-                </div>
-                <div
-                  style={{
-                    padding: '12px',
-                    backgroundColor: 'var(--background)',
-                    borderRadius: '8px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: '#51cf66',
-                      margin: '0 auto 4px auto',
-                    }}
-                  />
-                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#51cf66' }}>
-                    {onlineCount}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Online Now</div>
-                </div>
-                <div
-                  style={{
-                    padding: '12px',
-                    backgroundColor: 'var(--background)',
-                    borderRadius: '8px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <Calendar size={20} color="var(--text-muted)" style={{ marginBottom: '4px' }} />
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>
-                    {new Date(profile.createdAt).toLocaleDateString()}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Created</div>
-                </div>
-              </div>
-
-              {/* Privacy Settings */}
-              {profile.privacy && (
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{
-                    margin: '0 0 12px 0',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    color: 'var(--text)'
-                  }}>
-                    Privacy
-                  </h4>
-                  <div style={{
-                    padding: '16px',
-                    backgroundColor: 'var(--background)',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>
-                        {profile.privacy === 'public' ? 'Public' : 'Private'}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {profile.privacy === 'public'
-                          ? 'Anyone can find and join'
-                          : 'Invite-only membership'}
-                      </div>
-                    </div>
-                    {isAdmin && onUpdatePrivacy && (
-                      <button
-                        onClick={async () => {
-                          const newPrivacy = profile.privacy === 'public' ? 'private' : 'public';
-                          const confirmed = await confirm({
-                            title: 'Change Privacy',
-                            message: `Change this ${chat?.type || 'chat'} to ${newPrivacy}? ${newPrivacy === 'private' ? 'Only invited members will be able to join.' : 'Anyone will be able to find and join.'}`,
-                            confirmText: 'Change',
-                            cancelText: 'Cancel',
-                            variant: 'info',
-                          });
-                          if (confirmed) {
-                            onUpdatePrivacy(newPrivacy);
-                          }
-                        }}
-                        style={{
-                          padding: '8px 16px',
-                          backgroundColor: 'var(--accent)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          transition: 'opacity 0.2s',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.opacity = '0.8';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.opacity = '1';
-                        }}
-                      >
-                        Change to {profile.privacy === 'public' ? 'Private' : 'Public'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Admin Actions */}
-              {(isAdmin || canAddUsers || canManageChatInfo) && (
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {(isAdmin || canAddUsers) && (
-                      <button
-                        onClick={() => setShowAddMember(true)}
-                        style={{
-                          flex: 1,
-                          padding: '10px 16px',
-                          backgroundColor: '#51cf66',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <Users size={16} />
-                        Add Member
-                      </button>
-                    )}
-                    {(isAdmin || canManageChatInfo) && onEditGroup && (
-                      <button
-                        onClick={onEditGroup}
-                        style={{
-                          flex: 1,
-                          padding: '10px 16px',
-                          backgroundColor: 'var(--accent)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <Edit2 size={16} />
-                        Edit {chat.type === 'channel' ? 'Channel' : 'Group'}
-                      </button>
-                    )}
-                    {isAdmin && onDeleteGroup && (
-                      <button
-                        onClick={handleDelete}
-                        style={{
-                          padding: '10px 16px',
-                          backgroundColor: '#ff6b6b',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <Trash2 size={16} />
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Banned User Message */}
-              {isBanned && (
-                <div style={{
-                  marginBottom: '24px',
-                  padding: '16px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                }}>
-                  <Ban size={32} color="#ef4444" style={{ marginBottom: '8px' }} />
-                  <h4 style={{ margin: '0 0 8px 0', color: '#ef4444', fontSize: '16px', fontWeight: 600 }}>
-                    You Are Banned
-                  </h4>
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '14px' }}>
-                    Sorry, you have been banned from this {chat.type === 'channel' ? 'channel' : 'group'} and cannot rejoin.
-                  </p>
-                </div>
-              )}
-
-              {/* Join Button for non-members (public groups/channels only) */}
-              {!isMember && !isBanned && profile?.privacy === 'public' && (
-                <div style={{ marginBottom: '24px' }}>
-                  <button
-                    onClick={handleJoin}
-                    disabled={isJoining}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      backgroundColor: isJoining ? 'var(--text-muted)' : '#51cf66',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: isJoining ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      transition: 'background-color 0.2s',
-                    }}
-                  >
-                    <UserPlus size={18} />
-                    {isJoining ? 'Joining...' : `Join ${chat.type === 'channel' ? 'Channel' : 'Group'}`}
-                  </button>
-                </div>
-              )}
-
-              {/* Private group/channel message for non-members */}
-              {!isMember && !isBanned && profile?.privacy === 'private' && (
-                <div style={{
-                  marginBottom: '24px',
-                  padding: '16px',
-                  backgroundColor: 'var(--background)',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                }}>
-                  <Shield size={24} color="var(--text-muted)" style={{ marginBottom: '8px' }} />
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '14px' }}>
-                    This is a private {chat.type === 'channel' ? 'channel' : 'group'}. You need an invitation to join.
-                  </p>
-                </div>
-              )}
-
-              {/* Leave Group Button for non-admins */}
-              {!isAdmin && isMember && onLeaveGroup && (
-                <div style={{ marginBottom: '24px' }}>
-                  <button
-                    onClick={handleLeave}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      backgroundColor: '#ff6b6b',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <LogOut size={16} />
-                    Leave {chat.type === 'channel' ? 'Channel' : 'Group'}
-                  </button>
-                </div>
-              )}
-
-              {/* Banned Users Button (for admins or users with ManageBans permission) */}
-              {(isAdmin || canManageBans) && (
-                <div style={{ marginBottom: '24px' }}>
-                  <button
-                    onClick={() => setShowBannedUsers(true)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      backgroundColor: 'var(--background)',
-                      color: 'var(--text)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      transition: 'background-color 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--border)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--background)';
-                    }}
-                  >
-                    <Ban size={16} />
-                    View Banned Users
-                  </button>
-                </div>
-              )}
-
-              {/* Members List */}
-              <div>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
-                  Members ({totalMembers})
-                </h4>
-
-                {/* Member Search Bar */}
-                {totalMembers > 5 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <input
-                      type="text"
-                      placeholder="Search members..."
-                      value={memberSearchQuery}
-                      onChange={(e) => setMemberSearchQuery(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 16px',
-                        backgroundColor: 'var(--background)',
-                        border: '2px solid var(--border)',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        color: 'var(--text)',
-                        transition: 'border-color 0.2s',
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--accent)';
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border)';
-                      }}
-                    />
-                    <div style={{
-                      fontSize: '12px',
-                      color: 'var(--text-muted)',
-                      marginTop: '4px'
-                    }}>
-                      Showing {filteredMembers.length} of {totalMembers} members
-                    </div>
-                  </div>
-                )}
-
-                {/* Admins */}
-                {groupedMembers.admin.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: 'var(--text-muted)',
-                        marginBottom: '8px',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Admins
-                    </div>
-                    {groupedMembers.admin.map((member) => (
-                      <MemberItem
-                        key={member.id}
-                        member={member}
-                        currentUserId={currentUserId}
-                        isAdmin={isAdmin}
-                        isUserOnline={isUserOnline}
-                        getUserLastSeen={getUserLastSeen}
-                        onViewProfile={onViewUserProfile}
-                        onKick={handleKick}
-                        onBanMember={handleBan}
-                        chatId={chat.id}
-                        canManageBans={canManageBans}
-                        canManageUsers={canManageUsers}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Moderators */}
-                {groupedMembers.moderator.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: 'var(--text-muted)',
-                        marginBottom: '8px',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Moderators
-                    </div>
-                    {groupedMembers.moderator.map((member) => (
-                      <MemberItem
-                        key={member.id}
-                        member={member}
-                        currentUserId={currentUserId}
-                        isAdmin={isAdmin}
-                        isUserOnline={isUserOnline}
-                        getUserLastSeen={getUserLastSeen}
-                        onViewProfile={onViewUserProfile}
-                        onKick={handleKick}
-                        onBanMember={handleBan}
-                        chatId={chat.id}
-                        canManageBans={canManageBans}
-                        canManageUsers={canManageUsers}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Members */}
-                {groupedMembers.member.length > 0 && (
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: 'var(--text-muted)',
-                        marginBottom: '8px',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Members
-                    </div>
-                    {groupedMembers.member.map((member) => (
-                      <MemberItem
-                        key={member.id}
-                        member={member}
-                        currentUserId={currentUserId}
-                        isAdmin={isAdmin}
-                        isUserOnline={isUserOnline}
-                        getUserLastSeen={getUserLastSeen}
-                        onViewProfile={onViewUserProfile}
-                        onKick={handleKick}
-                        onBanMember={handleBan}
-                        chatId={chat.id}
-                        canManageBans={canManageBans}
-                        canManageUsers={canManageUsers}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-
-    {/* Add Member Modal */}
-    <AnimatePresence>
-      {showAddMember && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          onClick={() => setShowAddMember(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000,
-            padding: '16px',
-          }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.15 }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: 'var(--surface)',
-              borderRadius: '12px',
-              maxWidth: '500px',
-              width: '100%',
-              padding: '20px',
-              maxHeight: '80vh',
-              overflow: 'auto',
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px',
-            }}>
-              <h3 style={{ margin: 0, color: 'var(--text)' }}>Add Member</h3>
-              <button
-                onClick={() => setShowAddMember(false)}
-                aria-label="Close"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  color: 'var(--text-muted)',
-                  fontSize: '22px',
-                  fontWeight: 300,
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={addMemberQuery}
-              onChange={(e) => handleSearchUsers(e.target.value)}
+            <motion.div
+              variants={modalVariants}
+              onClick={e => e.stopPropagation()}
               style={{
                 width: '100%',
-                padding: '12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                backgroundColor: 'var(--background)',
-                color: 'var(--text)',
-                fontSize: '14px',
-                marginBottom: '16px',
+                maxWidth: 520,
+                maxHeight: '85vh',
+                background: colors.surface,
+                borderRadius: 16,
+                border: `1px solid ${colors.border}`,
+                boxShadow: `0 0 0 1px ${colors.border}, 0 25px 80px -20px rgba(0, 0, 0, 0.8)`,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
               }}
-              autoFocus
-            />
-
-            {isSearchingUsers && (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                Searching...
-              </div>
-            )}
-
-            {!isSearchingUsers && userSearchResults.length === 0 && addMemberQuery && (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                No users found
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {userSearchResults.map((user: any) => (
-                <div
-                  key={user.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px',
-                    backgroundColor: 'var(--background)',
-                    borderRadius: '8px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {user.username?.charAt(0).toUpperCase() || '?'}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, color: 'var(--text)' }}>
-                        {user.username}
-                      </div>
-                      {user.email && (
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          {user.email}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleAddMember(user.id)}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: 'var(--accent)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-
-    {/* Banned Users Modal */}
-    <AnimatePresence>
-      {showBannedUsers && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1002,
-          }}
-          onClick={() => setShowBannedUsers(false)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: 'var(--card)',
-              borderRadius: '12px',
-              padding: '24px',
-              width: '100%',
-              maxWidth: '400px',
-              maxHeight: '500px',
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px',
-            }}>
-              <h3 style={{ margin: 0, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Ban size={20} color="#ef4444" />
-                Banned Users
-              </h3>
-              <button
-                onClick={() => setShowBannedUsers(false)}
-                aria-label="Close"
+            >
+              {/* Header */}
+              <div
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  color: 'var(--text-muted)',
-                  fontSize: '22px',
-                  fontWeight: 300,
-                  lineHeight: 1,
+                  padding: '16px 20px',
+                  borderBottom: `1px solid ${colors.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  background: colors.bg,
                 }}
               >
-                ×
-              </button>
-            </div>
-
-            {isLoadingBannedUsers && (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                Loading banned users...
-              </div>
-            )}
-
-            {!isLoadingBannedUsers && bannedUsers.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                No banned users
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {bannedUsers.map((user) => (
-                <div
-                  key={user.userId}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px',
-                    backgroundColor: 'var(--background)',
-                    borderRadius: '8px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {user.avatarUrl ? (
-                      <img
-                        src={user.avatarUrl}
-                        alt={user.username}
-                        style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          backgroundColor: '#ef4444',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {user.username?.charAt(0).toUpperCase() || '?'}
-                      </div>
-                    )}
-                    <div>
-                      <div style={{ fontWeight: 500, color: 'var(--text)' }}>{user.username}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        Banned {new Date(user.bannedAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleUnban(user.userId, user.username)}
+                {viewMode !== 'main' && (
+                  <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.1 }}
+                    whileHover={{ backgroundColor: colors.surfaceActive, transition: { duration: 0.1 } }}
+                    whileTap={{ scale: 0.95, transition: { duration: 0.05 } }}
+                    onClick={() => setViewMode('main')}
+                    className="gpm-clickable"
                     style={{
-                      padding: '8px 16px',
-                      backgroundColor: '#51cf66',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Unban
-                  </button>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </>
-  );
-};
-
-interface MemberItemProps {
-  member: ChatMember;
-  currentUserId: string;
-  isAdmin: boolean;
-  isUserOnline: (userId: string) => boolean;
-  getUserLastSeen: (userId: string) => string | undefined;
-  onViewProfile?: (userId: string) => void;
-  onKick?: (userId: string) => void;
-  onBanMember?: (userId: string) => Promise<void>;
-  chatId: string;
-  canManageBans?: boolean;
-  canManageUsers?: boolean;
-}
-
-const MemberItem: React.FC<MemberItemProps> = ({
-  member,
-  currentUserId,
-  isAdmin,
-  isUserOnline,
-  getUserLastSeen,
-  onViewProfile,
-  onKick,
-  onBanMember,
-  chatId,
-  canManageBans = false,
-  canManageUsers = false,
-}) => {
-  const [showActions, setShowActions] = useState(false);
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
-  const online = isUserOnline(member.userId);
-  const lastSeen = getUserLastSeen(member.userId);
-  const isCurrentUser = member.userId === currentUserId;
-
-  const getRoleBadge = () => {
-    if (member.role === 'admin') {
-      return (
-        <span
-          style={{
-            padding: '3px 8px',
-            backgroundColor: '#fbbf24',
-            color: '#000',
-            borderRadius: '4px',
-            fontSize: '11px',
-            fontWeight: 600,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          <Crown size={12} />
-          Admin
-        </span>
-      );
-    }
-    if (member.role === 'moderator') {
-      return (
-        <span
-          style={{
-            padding: '3px 8px',
-            backgroundColor: '#60a5fa',
-            color: '#000',
-            borderRadius: '4px',
-            fontSize: '11px',
-            fontWeight: 600,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          <Shield size={12} />
-          Mod
-        </span>
-      );
-    }
-    if (member.role === 'member') {
-      return (
-        <span
-          style={{
-            padding: '3px 8px',
-            backgroundColor: '#94a3b8',
-            color: '#fff',
-            borderRadius: '4px',
-            fontSize: '11px',
-            fontWeight: 500,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          Member
-        </span>
-      );
-    }
-    return null;
-  };
-
-  // Determine if current user can manage this member
-  // Admin can manage all non-admin members
-  // Users with specific permissions can perform those actions on non-admin members
-  const canManage = !isCurrentUser && member.role !== 'admin' && (isAdmin || canManageBans || canManageUsers);
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '12px',
-        backgroundColor: 'var(--background)',
-        borderRadius: '8px',
-        marginBottom: '8px',
-        cursor: onViewProfile ? 'pointer' : 'default',
-        transition: 'background-color 0.2s',
-        position: 'relative',
-      }}
-      onClick={() => onViewProfile && onViewProfile(member.userId)}
-      onMouseEnter={(e) => {
-        if (onViewProfile) {
-          e.currentTarget.style.backgroundColor = 'var(--border)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--background)';
-      }}
-    >
-      {/* Avatar with online indicator */}
-      <div style={{ position: 'relative', marginRight: '12px' }}>
-        {member.user.avatar ? (
-          <img
-            src={member.user.avatar}
-            alt={member.user.username}
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--accent)',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px',
-              fontWeight: 700,
-            }}
-          >
-            {member.user.username.charAt(0).toUpperCase()}
-          </div>
-        )}
-        <OnlineStatusIndicator
-          isOnline={online}
-          lastSeen={lastSeen}
-          size="sm"
-          position="avatar-overlay"
-        />
-      </div>
-
-      {/* User info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-          <span
-            style={{
-              fontSize: '14px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {member.user.username}
-            {isCurrentUser && ' (You)'}
-          </span>
-          {getRoleBadge()}
-        </div>
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-          {online ? 'Online' : lastSeen ? `Last seen ${formatLastSeen(lastSeen)}` : 'Offline'}
-        </div>
-      </div>
-
-      {/* Actions Menu */}
-      {canManage && (
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowActions(!showActions);
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '6px',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-          >
-            <Settings size={18} color="var(--text-muted)" />
-          </button>
-          <AnimatePresence>
-            {showActions && (
-              <motion.div
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                transition={{ duration: 0.1 }}
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  bottom: '100%',
-                  marginBottom: '4px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
-                  minWidth: '180px',
-                  zIndex: 1000,
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Header */}
-                <div style={{
-                  padding: '10px 12px',
-                  borderBottom: '1px solid var(--border)',
-                }}>
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: 'var(--text-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}>
-                    Manage {member.user.username}
-                  </span>
-                </div>
-
-                {/* Permissions Button - only show for admins or users with ManageUsers permission */}
-                {(isAdmin || canManageUsers) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowActions(false);
-                      setShowPermissionModal(true);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      background: 'transparent',
-                      border: 'none',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      color: 'var(--text)',
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: colors.surfaceHover,
+                      border: `1px solid ${colors.border}`,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
-                      transition: 'background 0.1s ease',
+                      justifyContent: 'center',
+                      color: colors.text,
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    <Key size={14} color="var(--text-muted)" />
-                    Manage Permissions
-                  </button>
+                    <ChevronRight size={18} style={{ transform: 'rotate(180deg)', flexShrink: 0, minWidth: 18 }} />
+                  </motion.button>
                 )}
-
-                {/* Danger Actions */}
-                <div style={{
-                  borderTop: '1px solid var(--border)',
-                }}>
-                  {(isAdmin || canManageBans) && onBanMember && (
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const confirmed = await confirm({
-                          title: 'Ban Member',
-                          message: `Are you sure you want to ban ${member.user.username}? They will not be able to rejoin this group.`,
-                          confirmText: 'Ban',
-                          cancelText: 'Cancel',
-                          variant: 'danger',
-                        });
-                        if (confirmed) {
-                          onBanMember(member.userId);
-                        }
-                        setShowActions(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        background: 'transparent',
-                        border: 'none',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        color: '#ef4444',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'background 0.1s ease',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <Shield size={14} />
-                      Ban Member
-                    </button>
-                  )}
-                  {isAdmin && onKick && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onKick(member.userId);
-                        setShowActions(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        background: 'transparent',
-                        border: 'none',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        color: '#f97316',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'background 0.1s ease',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(249, 115, 22, 0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <Trash2 size={14} />
-                      Remove Member
-                    </button>
-                  )}
+                <div style={{ flex: 1 }}>
+                  <h2 style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: colors.text,
+                    letterSpacing: '-0.01em',
+                  }}>
+                    {viewMode === 'main' && `${isChannel ? 'Channel' : 'Group'} Profile`}
+                    {viewMode === 'members' && 'Members'}
+                    {viewMode === 'banned' && 'Banned Users'}
+                    {viewMode === 'addMember' && 'Add Member'}
+                  </h2>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
+                <motion.button
+                  whileHover={{ backgroundColor: colors.surfaceActive, transition: { duration: 0.1 } }}
+                  whileTap={{ scale: 0.95, transition: { duration: 0.05 } }}
+                  onClick={onClose}
+                  className="gpm-clickable"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: colors.surfaceHover,
+                    border: `1px solid ${colors.border}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: colors.textMuted,
+                    transition: 'background 0.1s',
+                  }}
+                >
+                  <X size={16} style={{ flexShrink: 0, minWidth: 16 }} />
+                </motion.button>
+              </div>
+
+              {/* Content */}
+              <div
+                className="gpm-scrollable"
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: 20,
+                }}
+              >
+                <AnimatePresence>
+                  {feedback.type && (
+                    <InlineFeedback
+                      type={feedback.type}
+                      message={feedback.message}
+                      onDismiss={() => setFeedback({ type: null, message: '' })}
+                    />
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence mode="wait">
+                {isLoading ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 60,
+                      gap: 16,
+                    }}
+                  >
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    >
+                      <Loader2 size={32} color={colors.primary} />
+                    </motion.div>
+                    <span style={{ color: colors.textMuted, fontSize: 14 }}>Loading...</span>
+                  </motion.div>
+                ) : viewMode === 'main' ? (
+                  <motion.div
+                    key="main"
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="visible"
+                    exit="hidden"
+                  >
+                    {/* Profile Header with Matrix Background */}
+                    <motion.div variants={staggerItem}>
+                      <MatrixBackground>
+                        {/* Avatar */}
+                        <div
+                          style={{
+                            width: 100,
+                            height: 100,
+                            borderRadius: '50%',
+                            margin: '0 auto 16px',
+                            background: profile?.avatar
+                              ? 'none'
+                              : `linear-gradient(135deg, ${colors.primary}60, ${colors.primary}30)`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: `3px solid ${colors.primary}50`,
+                            overflow: 'hidden',
+                            boxShadow: `0 0 25px ${colors.primaryGlow}`,
+                          }}
+                        >
+                          {profile?.avatar ? (
+                            <img
+                              src={fixMinioUrl(profile.avatar)}
+                              alt={profile.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : isChannel ? (
+                            <Radio size={42} color={colors.primary} style={{ flexShrink: 0, minWidth: 42 }} />
+                          ) : (
+                            <Users size={42} color={colors.primary} style={{ flexShrink: 0, minWidth: 42 }} />
+                          )}
+                        </div>
+
+                      {/* Name & Privacy */}
+                      <h3 style={{
+                        margin: '0 0 8px',
+                        fontSize: 22,
+                        fontWeight: 700,
+                        color: colors.text,
+                        letterSpacing: '-0.02em',
+                      }}>
+                        {profile?.name || chat.name}
+                      </h3>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
+                        <PrivacyBadge privacy={profile?.privacy || 'private'} />
+                        <span style={{
+                          fontSize: 13,
+                          color: colors.textSecondary,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}>
+                          <Users size={14} style={{ flexShrink: 0, minWidth: 14 }} />
+                          {profile?.members.length || 0} members
+                          <span style={{ color: colors.online }}>• {onlineCount} online</span>
+                        </span>
+                      </div>
+
+                      {profile?.description && (
+                        <p style={{
+                          margin: '12px 0 0',
+                          fontSize: 14,
+                          color: colors.textSecondary,
+                          lineHeight: 1.5,
+                          maxWidth: 360,
+                          marginLeft: 'auto',
+                          marginRight: 'auto',
+                        }}>
+                          {profile.description}
+                        </p>
+                      )}
+
+                        {profile?.createdAt && (
+                          <div style={{
+                            marginTop: 12,
+                            fontSize: 12,
+                            color: colors.textMuted,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                          }}>
+                            <Calendar size={12} style={{ flexShrink: 0, minWidth: 12 }} />
+                            Created {new Date(profile.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </div>
+                        )}
+                      </MatrixBackground>
+                    </motion.div>
+
+                    {/* Not a member - Join button */}
+                    {!isMember && !isBanned && (
+                      <motion.div variants={staggerItem} style={{ marginBottom: 20 }}>
+                        <motion.button
+                          onClick={handleJoin}
+                          disabled={isJoining}
+                          className="gpm-clickable"
+                          style={{
+                            width: '100%',
+                            padding: '14px 20px',
+                            background: colors.primary,
+                            border: 'none',
+                            borderRadius: 10,
+                            color: '#fff',
+                            fontSize: 15,
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 10,
+                            transition: 'box-shadow 0.1s',
+                          }}
+                          whileHover={{ boxShadow: `0 0 20px ${colors.primaryGlow}`, transition: { duration: 0.1 } }}
+                          whileTap={{ scale: 0.98, transition: { duration: 0.05 } }}
+                        >
+                          {isJoining ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <UserPlus size={18} />
+                          )}
+                          {isJoining ? 'Joining...' : `Join ${isChannel ? 'Channel' : 'Group'}`}
+                        </motion.button>
+                      </motion.div>
+                    )}
+
+                    {/* Banned message */}
+                    {isBanned && (
+                      <motion.div
+                        variants={staggerItem}
+                        style={{
+                          padding: 16,
+                          background: colors.dangerMuted,
+                          borderRadius: 10,
+                          border: `1px solid ${colors.danger}30`,
+                          marginBottom: 20,
+                          textAlign: 'center',
+                        }}
+                      >
+                        <Ban size={24} color={colors.danger} style={{ marginBottom: 8 }} />
+                        <p style={{ margin: 0, fontSize: 14, color: colors.danger, fontWeight: 500 }}>
+                          You are banned from this {chat.type}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Actions */}
+                    <motion.div variants={staggerItem} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* View Members */}
+                      <ActionButton
+                        icon={<Users size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
+                        label={`View Members (${profile?.members.length || 0})`}
+                        onClick={() => setViewMode('members')}
+                      />
+
+                      {/* Add Member */}
+                      {(isAdmin || canAddUsers) && isMember && (
+                        <ActionButton
+                          icon={<UserPlus size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
+                          label="Add Member"
+                          onClick={() => setViewMode('addMember')}
+                          variant="primary"
+                        />
+                      )}
+
+                      {/* Privacy Toggle */}
+                      {(isAdmin || canManageChatInfo) && isMember && (
+                        <ActionButton
+                          icon={profile?.privacy === 'public' ? <Lock size={18} style={{ flexShrink: 0, minWidth: 18 }} /> : <Globe size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
+                          label={`Make ${profile?.privacy === 'public' ? 'Private' : 'Public'}`}
+                          onClick={handlePrivacyToggle}
+                          loading={isUpdatingPrivacy}
+                        />
+                      )}
+
+                      {/* Edit */}
+                      {(isAdmin || canManageChatInfo) && isMember && onEditGroup && (
+                        <ActionButton
+                          icon={<Edit2 size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
+                          label={`Edit ${isChannel ? 'Channel' : 'Group'}`}
+                          onClick={onEditGroup}
+                        />
+                      )}
+
+                      {/* Banned Users */}
+                      {(isAdmin || canManageBans) && isMember && (
+                        <ActionButton
+                          icon={<Ban size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
+                          label="Banned Users"
+                          onClick={() => setViewMode('banned')}
+                        />
+                      )}
+
+                      {/* Leave */}
+                      {isMember && onLeaveGroup && (
+                        <ActionButton
+                          icon={<LogOut size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
+                          label={`Leave ${isChannel ? 'Channel' : 'Group'}`}
+                          onClick={onLeaveGroup}
+                          variant="danger"
+                        />
+                      )}
+
+                      {/* Delete */}
+                      {isAdmin && onDeleteGroup && (
+                        <ActionButton
+                          icon={<Trash2 size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
+                          label={`Delete ${isChannel ? 'Channel' : 'Group'}`}
+                          onClick={onDeleteGroup}
+                          variant="danger"
+                        />
+                      )}
+                    </motion.div>
+                  </motion.div>
+                ) : viewMode === 'members' ? (
+                  <motion.div key="members" variants={slideIn} initial="hidden" animate="visible" exit="exit">
+                    {/* Search */}
+                    <div style={{ marginBottom: 16, position: 'relative' }}>
+                      <Search
+                        size={16}
+                        color={colors.textMuted}
+                        style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', flexShrink: 0, minWidth: 16 }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search members..."
+                        value={memberSearchQuery}
+                        onChange={e => setMemberSearchQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '12px 14px 12px 42px',
+                          background: colors.surfaceElevated,
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: 10,
+                          color: colors.text,
+                          fontSize: 14,
+                          outline: 'none',
+                          transition: 'border-color 0.2s',
+                        }}
+                        onFocus={e => e.target.style.borderColor = colors.primary}
+                        onBlur={e => e.target.style.borderColor = colors.border}
+                      />
+                    </div>
+
+                    {/* Member List */}
+                    <motion.div
+                      variants={staggerContainer}
+                      initial="hidden"
+                      animate="visible"
+                      style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                    >
+                      {filteredMembers.map(member => (
+                        <MemberCard
+                          key={member.userId}
+                          member={member}
+                          isOnline={isUserOnline(member.userId)}
+                          lastSeen={getUserLastSeen(member.userId)}
+                          isCurrentUser={member.userId === currentUserId}
+                          canManage={isAdmin || canManageUsers || canManageBans}
+                          onViewProfile={() => onViewUserProfile?.(member.userId)}
+                          onKick={(isAdmin || canManageUsers) && member.role !== 'admin' ? () => handleKick(member.userId) : undefined}
+                          onBan={(isAdmin || canManageBans) && member.role !== 'admin' ? () => handleBan(member.userId) : undefined}
+                          onManagePermissions={isAdmin && member.role !== 'admin' ? () => {
+                            setSelectedMemberForPermissions(member);
+                            setShowPermissionModal(true);
+                          } : undefined}
+                        />
+                      ))}
+                      {filteredMembers.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: 40, color: colors.textMuted }}>
+                          No members found
+                        </div>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                ) : viewMode === 'banned' ? (
+                  <motion.div key="banned" variants={slideIn} initial="hidden" animate="visible" exit="exit">
+                    {isLoadingBannedUsers ? (
+                      <div style={{ textAlign: 'center', padding: 40 }}>
+                        <Loader2 size={24} color={colors.primary} className="animate-spin" />
+                      </div>
+                    ) : bannedUsers.length === 0 ? (
+                      <div style={{
+                        textAlign: 'center',
+                        padding: 40,
+                        color: colors.textMuted,
+                      }}>
+                        <Ban size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
+                        <p>No banned users</p>
+                      </div>
+                    ) : (
+                      <motion.div
+                        variants={staggerContainer}
+                        initial="hidden"
+                        animate="visible"
+                        style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                      >
+                        {bannedUsers.map(user => (
+                          <motion.div
+                            key={user.userId}
+                            variants={staggerItem}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              padding: '12px 14px',
+                              background: colors.surfaceElevated,
+                              borderRadius: 10,
+                              border: `1px solid ${colors.border}`,
+                            }}
+                          >
+                            {user.avatarUrl ? (
+                              <img
+                                src={fixMinioUrl(user.avatarUrl)}
+                                alt={user.username}
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                  marginRight: 12,
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: '50%',
+                                  background: colors.dangerMuted,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginRight: 12,
+                                  color: colors.danger,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {getInitials(user.username)}
+                              </div>
+                            )}
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>
+                                {user.username}
+                              </div>
+                              <div style={{ fontSize: 12, color: colors.textMuted }}>
+                                Banned {new Date(user.bannedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleUnban(user.userId, user.username)}
+                              className="gpm-clickable"
+                              style={{
+                                padding: '8px 14px',
+                                background: colors.primaryMuted,
+                                border: `1px solid ${colors.primary}30`,
+                                borderRadius: 6,
+                                color: colors.primary,
+                                fontSize: 13,
+                                fontWeight: 500,
+                              }}
+                            >
+                              Unban
+                            </button>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </motion.div>
+                ) : viewMode === 'addMember' ? (
+                  <motion.div key="addMember" variants={slideIn} initial="hidden" animate="visible" exit="exit">
+                    {/* Search Input */}
+                    <div style={{ marginBottom: 16, position: 'relative' }}>
+                      <Search
+                        size={16}
+                        color={colors.textMuted}
+                        style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', flexShrink: 0, minWidth: 16 }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search users to add..."
+                        value={addMemberQuery}
+                        onChange={e => setAddMemberQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '12px 14px 12px 42px',
+                          background: colors.surfaceElevated,
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: 10,
+                          color: colors.text,
+                          fontSize: 14,
+                          outline: 'none',
+                          transition: 'border-color 0.2s',
+                        }}
+                        onFocus={e => e.target.style.borderColor = colors.primary}
+                        onBlur={e => e.target.style.borderColor = colors.border}
+                      />
+                    </div>
+
+                    {/* Search Results */}
+                    {isSearchingUsers ? (
+                      <div style={{ textAlign: 'center', padding: 40 }}>
+                        <Loader2 size={24} color={colors.primary} className="animate-spin" />
+                      </div>
+                    ) : userSearchResults.length > 0 ? (
+                      <motion.div
+                        variants={staggerContainer}
+                        initial="hidden"
+                        animate="visible"
+                        style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                      >
+                        {userSearchResults.map((user: any) => (
+                          <motion.div
+                            key={user.id}
+                            variants={staggerItem}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              padding: '12px 14px',
+                              background: colors.surfaceElevated,
+                              borderRadius: 10,
+                              border: `1px solid ${colors.border}`,
+                            }}
+                          >
+                            {user.avatar ? (
+                              <img
+                                src={fixMinioUrl(user.avatar)}
+                                alt={user.username}
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                  marginRight: 12,
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: '50%',
+                                  background: colors.primaryMuted,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginRight: 12,
+                                  color: colors.primary,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {getInitials(user.username)}
+                              </div>
+                            )}
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>
+                                {user.username}
+                              </div>
+                              {user.email && (
+                                <div style={{ fontSize: 12, color: colors.textMuted }}>
+                                  {user.email}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleAddMember(user.id)}
+                              className="gpm-clickable"
+                              style={{
+                                padding: '8px 14px',
+                                background: colors.primary,
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 500,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                            >
+                              <UserPlus size={14} />
+                              Add
+                            </button>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    ) : addMemberQuery.trim() ? (
+                      <div style={{ textAlign: 'center', padding: 40, color: colors.textMuted }}>
+                        No users found
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: 40, color: colors.textMuted }}>
+                        <UserPlus size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
+                        <p>Type to search for users</p>
+                      </div>
+                    )}
+                  </motion.div>
+                ) : null}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Permission Modal */}
-      <PermissionModal
-        isOpen={showPermissionModal}
-        onClose={() => setShowPermissionModal(false)}
-        chatId={chatId}
-        member={{
-          id: member.id || member.userId || '',
-          userId: member.userId,
-          user: {
-            id: member.user.id || member.userId,
-            username: member.user.username,
-            avatarUrl: member.user.avatar,
-          },
-          role: (member.role as 'admin' | 'moderator' | 'member') || 'member',
-        }}
-        onPermissionsChanged={async () => {
-          // Permissions are changed, can reload if needed
-        }}
-      />
-    </div>
+      {showPermissionModal && selectedMemberForPermissions && (
+        <PermissionModal
+          isOpen={showPermissionModal}
+          onClose={() => {
+            setShowPermissionModal(false);
+            setSelectedMemberForPermissions(null);
+          }}
+          chatId={chat.id}
+          member={selectedMemberForPermissions}
+          onPermissionsUpdated={async () => {
+            await loadProfile();
+          }}
+        />
+      )}
+    </>
   );
 };
+
+export default GroupProfileModal;

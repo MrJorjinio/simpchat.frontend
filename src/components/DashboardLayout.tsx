@@ -1197,7 +1197,7 @@ export const DashboardLayout = () => {
                       title={`${currentChat.type === 'channel' ? 'Channel' : 'Group'} Info`}
                       type="button"
                     >
-                      <Info size={18} strokeWidth={2} />
+                      <Info size={18} strokeWidth={2} style={{ flexShrink: 0, minWidth: 18 }} />
                     </button>
                   )}
                 </div>

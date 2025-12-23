@@ -75,6 +75,65 @@ const userScrollbarStyles = `
   .user-profile-modal-content::-webkit-scrollbar-thumb:hover {
     background: ${colors.primaryHover};
   }
+
+  /* Matrix Animation Keyframes */
+  @keyframes user-matrix-flicker {
+    0%, 100% { opacity: 0.1; }
+    50% { opacity: 0.4; }
+  }
+
+  @keyframes user-matrix-fall {
+    0% { transform: translateY(-100%); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(100%); opacity: 0; }
+  }
+
+  @keyframes user-matrix-glow {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 2px ${colors.primary}); }
+    50% { filter: brightness(1.3) drop-shadow(0 0 8px ${colors.primary}); }
+  }
+
+  .user-matrix-container .user-matrix-cell {
+    background: ${colors.primary};
+    opacity: 0.18;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+    animation: user-matrix-flicker 2s ease-in-out infinite;
+    animation-delay: calc(var(--cell-index) * 0.02s);
+  }
+
+  .user-matrix-container .user-matrix-cell:nth-child(3n) {
+    opacity: 0.32;
+    animation-duration: 1.5s;
+    box-shadow: 0 0 3px ${colors.primary};
+  }
+  .user-matrix-container .user-matrix-cell:nth-child(5n) {
+    opacity: 0.42;
+    animation-duration: 1.8s;
+    box-shadow: 0 0 4px ${colors.primary};
+  }
+  .user-matrix-container .user-matrix-cell:nth-child(7n+1) {
+    opacity: 0.25;
+    animation-duration: 2.2s;
+  }
+  .user-matrix-container .user-matrix-cell:nth-child(11n) {
+    opacity: 0.55;
+    box-shadow: 0 0 6px ${colors.primary}, 0 0 10px ${colors.primary};
+    animation-duration: 1.2s;
+  }
+
+  .user-matrix-container .user-matrix-rain {
+    position: absolute;
+    width: 2px;
+    background: linear-gradient(to bottom, transparent, ${colors.primary}, transparent);
+    pointer-events: none;
+    animation: user-matrix-fall 2s linear infinite;
+  }
+
+  .user-matrix-container .user-avatar-wrapper {
+    animation: user-matrix-glow 3s ease-in-out infinite;
+  }
 `;
 
 // Inject scrollbar styles once
@@ -120,6 +179,71 @@ const staggerContainer = {
 const staggerItem = {
   hidden: { opacity: 0, y: 10 },
   visible: { opacity: 1, y: 0 },
+};
+
+// ============================================================================
+// MATRIX BACKGROUND COMPONENT
+// ============================================================================
+const MatrixBackground: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const gridCols = 15;
+  const gridRows = 12;
+  const totalCells = gridCols * gridRows;
+  const rainDrops = 8;
+
+  return (
+    <div
+      className="user-matrix-container"
+      style={{
+        position: 'relative',
+        background: colors.bg,
+        borderRadius: '16px',
+        overflow: 'hidden',
+        marginBottom: '20px',
+        border: `1px solid ${colors.border}`,
+      }}
+    >
+      {/* Matrix Grid Background */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'grid',
+          gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+          gridTemplateRows: `repeat(${gridRows}, 1fr)`,
+          gap: '3px',
+          padding: '12px',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      >
+        {Array.from({ length: totalCells }).map((_, i) => (
+          <div
+            key={i}
+            className="user-matrix-cell"
+            style={{ '--cell-index': i } as React.CSSProperties}
+          />
+        ))}
+      </div>
+
+      {/* Rain Drops */}
+      {Array.from({ length: rainDrops }).map((_, i) => (
+        <div
+          key={`rain-${i}`}
+          className="user-matrix-rain"
+          style={{
+            left: `${10 + (i * 80 / rainDrops)}%`,
+            height: '40px',
+            animationDelay: `${i * 0.15}s`,
+          }}
+        />
+      ))}
+
+      {/* Content */}
+      <div style={{ position: 'relative', zIndex: 1, padding: '24px' }}>
+        {children}
+      </div>
+    </div>
+  );
 };
 
 // ============================================================================
@@ -333,7 +457,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                   color: colors.textMuted,
                 }}
               >
-                <X size={20} />
+                <X size={20} style={{ flexShrink: 0, minWidth: 20 }} />
               </motion.button>
             </div>
 
@@ -386,97 +510,104 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                   initial="hidden"
                   animate="visible"
                 >
-                  {/* Avatar and Basic Info */}
-                  <motion.div variants={staggerItem} style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <div style={{ position: 'relative', display: 'inline-block', marginBottom: '16px' }}>
-                      {user.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={user.username}
-                          style={{
-                            width: '120px',
-                            height: '120px',
-                            borderRadius: '50%',
-                            objectFit: 'cover',
-                            border: `3px solid ${online ? colors.primary : colors.border}`,
-                            boxShadow: online ? `0 0 30px ${colors.primaryMuted}` : 'none',
-                          }}
-                        />
-                      ) : (
+                  {/* Matrix Background with Avatar and Basic Info */}
+                  <MatrixBackground>
+                    <motion.div variants={staggerItem} style={{ textAlign: 'center' }}>
+                      <div
+                        className="user-avatar-wrapper"
+                        style={{ position: 'relative', display: 'inline-block', marginBottom: '16px' }}
+                      >
+                        {user.avatar ? (
+                          <img
+                            src={user.avatar}
+                            alt={user.username}
+                            style={{
+                              width: '120px',
+                              height: '120px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: `3px solid ${online ? colors.primary : colors.border}`,
+                              boxShadow: online ? `0 0 30px ${colors.primaryMuted}` : 'none',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '120px',
+                              height: '120px',
+                              borderRadius: '50%',
+                              background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryHover} 100%)`,
+                              color: 'white',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '48px',
+                              fontWeight: 700,
+                              boxShadow: `0 0 30px ${colors.primaryMuted}`,
+                            }}
+                          >
+                            {user.username.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        {/* Online Indicator */}
                         <div
                           style={{
-                            width: '120px',
-                            height: '120px',
+                            position: 'absolute',
+                            bottom: '6px',
+                            right: '6px',
+                            width: '24px',
+                            height: '24px',
                             borderRadius: '50%',
-                            background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryHover} 100%)`,
-                            color: 'white',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '48px',
-                            fontWeight: 700,
-                            boxShadow: `0 0 30px ${colors.primaryMuted}`,
+                            background: online ? colors.primary : colors.textMuted,
+                            border: `3px solid ${colors.bg}`,
+                            boxShadow: online ? `0 0 12px ${colors.primary}` : 'none',
                           }}
-                        >
-                          {user.username.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      {/* Online Indicator */}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          bottom: '6px',
-                          right: '6px',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: online ? colors.primary : colors.textMuted,
-                          border: `3px solid ${colors.surface}`,
-                          boxShadow: online ? `0 0 12px ${colors.primary}` : 'none',
-                        }}
-                      />
-                    </div>
+                        />
+                      </div>
 
-                    <h3 style={{
-                      margin: '0 0 8px 0',
-                      fontSize: '24px',
-                      fontWeight: 700,
-                      color: colors.text,
-                      letterSpacing: '-0.02em',
-                    }}>
-                      {user.username}
-                    </h3>
-
-                    {/* Online Status Badge */}
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '6px 14px',
-                        borderRadius: '20px',
-                        background: online ? colors.primaryMuted : colors.surfaceElevated,
-                        border: `1px solid ${online ? `${colors.primary}30` : colors.border}`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: online ? colors.primary : colors.textMuted,
-                          boxShadow: online ? `0 0 8px ${colors.primary}` : 'none',
-                        }}
-                      />
-                      <span style={{
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        color: online ? colors.primary : colors.textMuted
+                      <h3 style={{
+                        margin: '0 0 8px 0',
+                        fontSize: '24px',
+                        fontWeight: 700,
+                        color: colors.text,
+                        letterSpacing: '-0.02em',
+                        textShadow: `0 0 20px ${colors.primaryMuted}`,
                       }}>
-                        {online ? 'Online' : lastSeen ? `Last seen ${formatLastSeen(lastSeen)}` : 'Offline'}
-                      </span>
-                    </div>
-                  </motion.div>
+                        {user.username}
+                      </h3>
+
+                      {/* Online Status Badge */}
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          background: online ? colors.primaryMuted : 'rgba(15, 15, 15, 0.8)',
+                          border: `1px solid ${online ? `${colors.primary}30` : colors.border}`,
+                          backdropFilter: 'blur(4px)',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: online ? colors.primary : colors.textMuted,
+                            boxShadow: online ? `0 0 8px ${colors.primary}` : 'none',
+                          }}
+                        />
+                        <span style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: online ? colors.primary : colors.textMuted
+                        }}>
+                          {online ? 'Online' : lastSeen ? `Last seen ${formatLastSeen(lastSeen)}` : 'Offline'}
+                        </span>
+                      </div>
+                    </motion.div>
+                  </MatrixBackground>
 
                   {/* Bio Section */}
                   <motion.div
@@ -536,7 +667,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}>
-                        <Mail size={18} color={colors.primary} />
+                        <Mail size={18} color={colors.primary} style={{ flexShrink: 0, minWidth: 18 }} />
                       </div>
                       <div>
                         <div style={{ fontSize: '12px', color: colors.textMuted, marginBottom: '2px' }}>Email</div>
@@ -568,7 +699,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}>
-                        <Calendar size={18} color={colors.primary} />
+                        <Calendar size={18} color={colors.primary} style={{ flexShrink: 0, minWidth: 18 }} />
                       </div>
                       <div>
                         <div style={{ fontSize: '12px', color: colors.textMuted, marginBottom: '2px' }}>Member Since</div>
@@ -594,7 +725,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                         border: `1px solid ${colors.danger}30`,
                       }}
                     >
-                      <Ban size={20} color={colors.danger} />
+                      <Ban size={20} color={colors.danger} style={{ flexShrink: 0, minWidth: 20 }} />
                       <span style={{ fontSize: '14px', color: colors.danger, fontWeight: 500 }}>
                         {theyBlockedMe && iBlockedThem
                           ? 'You have blocked each other'
@@ -632,7 +763,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                           boxShadow: isMessagingBlocked ? 'none' : `0 0 20px ${colors.primaryMuted}`,
                         }}
                       >
-                        <MessageCircle size={20} />
+                        <MessageCircle size={20} style={{ flexShrink: 0, minWidth: 20 }} />
                         {isMessagingBlocked ? 'Cannot Message' : 'Send Message'}
                       </motion.button>
                     )}
@@ -660,7 +791,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                             gap: '10px',
                           }}
                         >
-                          <UserCheck size={20} />
+                          <UserCheck size={20} style={{ flexShrink: 0, minWidth: 20 }} />
                           Unblock User
                         </motion.button>
                       )
@@ -686,7 +817,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                             gap: '10px',
                           }}
                         >
-                          <UserX size={20} />
+                          <UserX size={20} style={{ flexShrink: 0, minWidth: 20 }} />
                           Block User
                         </motion.button>
                       )
