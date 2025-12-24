@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Calendar, Crown, Shield, Edit2, Trash2, LogOut,
   Key, UserPlus, Ban, X, Lock, Globe, Search, Radio,
-  ChevronRight, UserMinus, Eye, EyeOff, Check, AlertCircle,
+  ChevronRight, UserMinus, Eye, Check, AlertCircle,
   Loader2, User
 } from 'lucide-react';
 import type { Chat, ChatMember } from '../../types/api.types';
@@ -11,7 +11,6 @@ import { chatService } from '../../services/chat.service';
 import { userService } from '../../services/user.service';
 import { useChatStore } from '../../stores/chatStore';
 import { signalRService } from '../../services/signalr.service';
-import { OnlineStatusIndicator } from '../common/OnlineStatusIndicator';
 import { usePermissions } from '../../hooks/usePermission';
 import { formatLastSeen, getInitials, fixMinioUrl } from '../../utils/helpers';
 import { confirm } from '../common/ConfirmModal';
@@ -199,8 +198,8 @@ if (typeof document !== 'undefined' && !document.getElementById(globalStyleId)) 
 // ============================================================================
 const overlayVariants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.15, ease: 'easeOut' } },
-  exit: { opacity: 0, transition: { duration: 0.1, ease: 'easeIn' } },
+  visible: { opacity: 1, transition: { duration: 0.15, ease: 'easeOut' as const } },
+  exit: { opacity: 0, transition: { duration: 0.1, ease: 'easeIn' as const } },
 };
 
 const modalVariants = {
@@ -209,9 +208,9 @@ const modalVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.15, ease: 'easeOut' }
+    transition: { duration: 0.15, ease: 'easeOut' as const }
   },
-  exit: { opacity: 0, scale: 0.98, y: 5, transition: { duration: 0.1, ease: 'easeIn' } },
+  exit: { opacity: 0, scale: 0.98, y: 5, transition: { duration: 0.1, ease: 'easeIn' as const } },
 };
 
 // No stagger - instant content appearance
@@ -228,8 +227,8 @@ const staggerItem = {
 // Fast section transitions - minimal animation
 const slideIn = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.1, ease: 'easeOut' } },
-  exit: { opacity: 0, transition: { duration: 0.08, ease: 'easeIn' } },
+  visible: { opacity: 1, transition: { duration: 0.1, ease: 'easeOut' as const } },
+  exit: { opacity: 0, transition: { duration: 0.08, ease: 'easeIn' as const } },
 };
 
 // ============================================================================
@@ -248,6 +247,7 @@ interface GroupProfileModalProps {
   onBanMember?: (userId: string) => Promise<void>;
   onUnbanMember?: (userId: string) => Promise<void>;
   onUpdatePrivacy?: (privacy: 'public' | 'private') => Promise<void>;
+  fancyAnimations?: boolean;
 }
 
 interface ChatProfile {
@@ -401,7 +401,7 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
 };
 
 // Matrix Background Component - Full panel background
-const MatrixBackground: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const MatrixBackground: React.FC<{ children: React.ReactNode; enabled?: boolean }> = ({ children, enabled = true }) => {
   const cellCount = 180; // 15x12 grid for full panel
   const rainDrops = 12;
 
@@ -417,31 +417,33 @@ const MatrixBackground: React.FC<{ children: React.ReactNode }> = ({ children })
         overflow: 'hidden',
       }}
     >
-      {/* Matrix Grid - Full background */}
-      <div
-        className="matrix-grid"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(15, 1fr)',
-          gridTemplateRows: 'repeat(12, 1fr)',
-          gap: 3,
-          padding: 10,
-          opacity: 0.8,
-        }}
-      >
-        {Array.from({ length: cellCount }).map((_, i) => (
-          <div
-            key={i}
-            className="matrix-cell"
-            style={{ '--cell-index': i } as React.CSSProperties}
-          />
-        ))}
-      </div>
+      {/* Matrix Grid - Full background (only when enabled) */}
+      {enabled && (
+        <div
+          className="matrix-grid"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(15, 1fr)',
+            gridTemplateRows: 'repeat(12, 1fr)',
+            gap: 3,
+            padding: 10,
+            opacity: 0.8,
+          }}
+        >
+          {Array.from({ length: cellCount }).map((_, i) => (
+            <div
+              key={i}
+              className="matrix-cell"
+              style={{ '--cell-index': i } as React.CSSProperties}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* Rain drops */}
-      {Array.from({ length: rainDrops }).map((_, i) => (
+      {/* Rain drops (only when enabled) */}
+      {enabled && Array.from({ length: rainDrops }).map((_, i) => (
         <div
           key={`rain-${i}`}
           className="matrix-rain"
@@ -769,6 +771,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
   onBanMember,
   onUnbanMember,
   onUpdatePrivacy,
+  fancyAnimations = true,
 }) => {
   // State
   const [profile, setProfile] = useState<ChatProfile | null>(null);
@@ -855,6 +858,26 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
       loadProfile();
     }
   }, [isOpen, chat.id]);
+
+  // Sync profile with chat prop updates (for immediate UI feedback after edits)
+  useEffect(() => {
+    if (profile && chat && isOpen) {
+      // Update profile if chat was edited (name, description, or avatar changed)
+      const needsUpdate =
+        chat.name !== profile.name ||
+        chat.description !== profile.description ||
+        chat.avatar !== profile.avatar;
+
+      if (needsUpdate) {
+        setProfile(prev => prev ? {
+          ...prev,
+          name: chat.name || prev.name,
+          description: chat.description ?? prev.description,
+          avatar: chat.avatar ?? prev.avatar,
+        } : null);
+      }
+    }
+  }, [chat.name, chat.description, chat.avatar, isOpen]);
 
   useEffect(() => {
     if (viewMode === 'banned' && (isAdmin || canManageBans)) {
@@ -960,12 +983,42 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
       try {
         await onUpdatePrivacy(newPrivacy);
         setProfile(prev => prev ? { ...prev, privacy: newPrivacy } : null);
-        showFeedback('success', `${chat.type} is now ${newPrivacy}`);
+        // No success notification - the UI update (privacy badge) is enough feedback
       } catch (e) {
         showFeedback('error', 'Failed to update privacy');
       } finally {
         setIsUpdatingPrivacy(false);
       }
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!onLeaveGroup) return;
+    const isChannel = chat.type === 'channel';
+    const confirmed = await confirm({
+      title: `Leave ${isChannel ? 'Channel' : 'Group'}?`,
+      message: `Are you sure you want to leave "${profile?.name || chat.name}"? You can rejoin later if it's public.`,
+      confirmText: 'Leave',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (confirmed) {
+      onLeaveGroup();
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!onDeleteGroup) return;
+    const isChannel = chat.type === 'channel';
+    const confirmed = await confirm({
+      title: `Delete ${isChannel ? 'Channel' : 'Group'}?`,
+      message: `Are you sure you want to permanently delete "${profile?.name || chat.name}"? This action cannot be undone and all messages will be lost.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (confirmed) {
+      onDeleteGroup();
     }
   };
 
@@ -1175,7 +1228,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                   >
                     {/* Profile Header with Matrix Background */}
                     <motion.div variants={staggerItem}>
-                      <MatrixBackground>
+                      <MatrixBackground enabled={fancyAnimations}>
                         {/* Avatar */}
                         <div
                           style={{
@@ -1375,7 +1428,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         <ActionButton
                           icon={<LogOut size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
                           label={`Leave ${isChannel ? 'Channel' : 'Group'}`}
-                          onClick={onLeaveGroup}
+                          onClick={handleLeaveGroup}
                           variant="danger"
                         />
                       )}
@@ -1385,7 +1438,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                         <ActionButton
                           icon={<Trash2 size={18} style={{ flexShrink: 0, minWidth: 18 }} />}
                           label={`Delete ${isChannel ? 'Channel' : 'Group'}`}
-                          onClick={onDeleteGroup}
+                          onClick={handleDeleteGroup}
                           variant="danger"
                         />
                       )}
@@ -1691,7 +1744,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
           }}
           chatId={chat.id}
           member={selectedMemberForPermissions}
-          onPermissionsUpdated={async () => {
+          onPermissionsChanged={async () => {
             await loadProfile();
           }}
         />

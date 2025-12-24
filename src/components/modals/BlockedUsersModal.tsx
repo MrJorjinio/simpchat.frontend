@@ -4,7 +4,6 @@ import { userService } from '../../services/user.service';
 // Toast removed - using visual feedback instead
 import { confirm } from '../common/ConfirmModal';
 import { getInitials, fixMinioUrl } from '../../utils/helpers';
-import { extractErrorMessage } from '../../utils/errorHandler';
 
 interface BlockedUser {
   userId: string;

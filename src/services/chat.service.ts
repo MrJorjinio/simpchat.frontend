@@ -48,30 +48,51 @@ export const chatService = {
   },
 
   createGroup: async (formData: FormData) => {
-    // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
-    const response = await api.post<any>('/groups', formData, {
-      headers: { 'Content-Type': undefined },
-    });
+    console.log('[ChatService] createGroup called');
+    // Log FormData contents
+    console.log('[ChatService] FormData contents:');
+    for (const [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value instanceof File ? `File(${value.name}, ${value.size} bytes)` : value);
+    }
+    // Don't set Content-Type - let axios/browser set it automatically with correct boundary
+    const response = await api.post<any>('/groups', formData);
+    console.log('[ChatService] createGroup raw response:', response);
+    console.log('[ChatService] createGroup response.data:', response.data);
     const rawChat = response.data?.data || response.data;
+    console.log('[ChatService] createGroup rawChat:', rawChat);
     return normalizeChat(rawChat);
   },
 
   createChannel: async (formData: FormData) => {
-    // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
-    const response = await api.post<any>('/channels', formData, {
-      headers: { 'Content-Type': undefined },
-    });
+    console.log('[ChatService] createChannel called');
+    // Log FormData contents
+    console.log('[ChatService] FormData contents:');
+    for (const [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value instanceof File ? `File(${value.name}, ${value.size} bytes)` : value);
+    }
+    // Don't set Content-Type - let axios/browser set it automatically with correct boundary
+    const response = await api.post<any>('/channels', formData);
+    console.log('[ChatService] createChannel raw response:', response);
+    console.log('[ChatService] createChannel response.data:', response.data);
     const rawChat = response.data?.data || response.data;
+    console.log('[ChatService] createChannel rawChat:', rawChat);
     return normalizeChat(rawChat);
   },
 
   updateChat: async (chatId: string, chatType: 'group' | 'channel', formData: FormData) => {
     const endpoint = chatType === 'group' ? '/groups' : '/channels';
-    // Must set Content-Type to undefined so axios can auto-set multipart/form-data with boundary
+    // Log FormData contents for debugging
+    console.log('[ChatService] updateChat FormData contents:');
+    for (const [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value instanceof File ? `File(${value.name}, ${value.size} bytes)` : value);
+    }
+    // Set Content-Type to undefined to remove the default 'application/json' header
+    // This lets axios/browser set it automatically with correct multipart/form-data boundary
     const response = await api.put<any>(endpoint, formData, {
       params: { chatId },
       headers: { 'Content-Type': undefined },
     });
+    console.log('[ChatService] updateChat response:', response.data);
     return response.data?.data || response.data;
   },
 

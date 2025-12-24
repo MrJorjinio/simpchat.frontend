@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, MessageSquare, Users, Settings, Ban, Pin, UserPlus, Loader2 } from 'lucide-react';
-import { extractErrorMessage } from '../../utils/errorHandler';
 // Toast removed - using visual feedback instead
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';

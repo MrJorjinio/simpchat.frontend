@@ -16,21 +16,18 @@ import {
   Pencil,
   Trash2,
   Info,
-  Crown,
-  Shield,
-  UserPlus,
-  LogOut,
   Ban,
-  UserX,
-  UserCheck,
-  Calendar,
   Settings,
+  Bell,
+  User as UserIcon,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
+import { useThemeStore } from '../stores/themeStore';
+import { usePreferencesStore } from '../stores/preferencesStore';
 import { userService } from '../services/user.service';
 import { signalRService } from '../services/signalr.service';
-import { getInitials, formatTime, formatTimeOfDay, fixMinioUrl, truncateText, formatLastSeen } from '../utils/helpers';
+import { getInitials, formatTime, formatTimeOfDay, fixMinioUrl, truncateText } from '../utils/helpers';
 // Toast removed - using visual feedback instead
 import { motion, AnimatePresence } from 'framer-motion';
 import { chatService } from '../services/chat.service';
@@ -39,6 +36,9 @@ import type { Chat, BackendMessage, User } from '../types/api.types';
 import { PermissionModal, type ChatMember } from './modals/PermissionModal';
 import { UserProfileViewerModal } from './modals/UserProfileViewerModal';
 import { GroupProfileModal } from './modals/GroupProfileModal';
+import { BlockedUsersModal } from './modals/BlockedUsersModal';
+import AdminPanel from './AdminPanel';
+import { SettingsPanel } from './SettingsPanel';
 import { confirm } from './common/ConfirmModal';
 import styles from '../styles/DashboardLayout.module.css';
 
@@ -52,7 +52,10 @@ interface SearchResult {
 }
 
 export const DashboardLayout = () => {
-  const { user: currentUser } = useAuthStore();
+  const { user: currentUser, logout } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
+  const { fancyAnimations, toggleFancyAnimations } = usePreferencesStore();
+  const isDarkMode = theme === 'dark';
 
   // Chat store connections
   const {
@@ -76,12 +79,11 @@ export const DashboardLayout = () => {
     isLoadingPinned,
     addBlockedUser,
     removeBlockedUser,
-    getUserLastSeen,
     setInitialPresenceStates,
   } = useChatStore();
 
   // Get permissions for current chat
-  const { canSendMessage, canAddUsers, canManageChatInfo, canManageBans, canManageUsers } = usePermissions(currentChat?.id);
+  const { canSendMessage } = usePermissions(currentChat?.id);
 
   // Check block status for DM chats
   const getOtherUserId = (): string | null => {
@@ -113,21 +115,27 @@ export const DashboardLayout = () => {
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Modal state
+  const [showSettings, setShowSettings] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [showEditUserProfile, setShowEditUserProfile] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [showGroupProfile, setShowGroupProfile] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [userProfileUserId, setUserProfileUserId] = useState<string | null>(null);
-  const [profileUser, setProfileUser] = useState<User | null>(null);
+  const [_profileUser, setProfileUser] = useState<User | null>(null);
 
   // Enhanced modal states
-  const [userProfileLoading, setUserProfileLoading] = useState(false);
-  const [userProfileError, setUserProfileError] = useState<string | null>(null);
-  const [iBlockedThem, setIBlockedThem] = useState(false);
-  const [theyBlockedMe, setTheyBlockedMe] = useState(false);
+  const [_userProfileLoading, setUserProfileLoading] = useState(false);
+  const [_userProfileError, setUserProfileError] = useState<string | null>(null);
+  const [_iBlockedThem, setIBlockedThem] = useState(false);
+  const [_theyBlockedMe, setTheyBlockedMe] = useState(false);
 
   // Group profile enhanced states
   const [groupProfileData, setGroupProfileData] = useState<any>(null);
-  const [groupProfileLoading, setGroupProfileLoading] = useState(false);
-  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [_groupProfileLoading, setGroupProfileLoading] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [addMemberQuery, setAddMemberQuery] = useState('');
   const [addMemberResults, setAddMemberResults] = useState<User[]>([]);
@@ -147,6 +155,21 @@ export const DashboardLayout = () => {
   const [editGroupAvatar, setEditGroupAvatar] = useState<File | null>(null);
   const [editGroupAvatarPreview, setEditGroupAvatarPreview] = useState<string | null>(null);
   const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
+
+  // Create Group/Channel modal state
+  const [createGroupName, setCreateGroupName] = useState('');
+  const [createGroupDescription, setCreateGroupDescription] = useState('');
+  const [createGroupAvatar, setCreateGroupAvatar] = useState<File | null>(null);
+  const [createGroupAvatarPreview, setCreateGroupAvatarPreview] = useState<string | null>(null);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [createGroupPrivacy, setCreateGroupPrivacy] = useState<'public' | 'private'>('public');
+
+  // Edit user profile modal state
+  const [editUserUsername, setEditUserUsername] = useState('');
+  const [editUserBio, setEditUserBio] = useState('');
+  const [editUserAvatar, setEditUserAvatar] = useState<File | null>(null);
+  const [editUserAvatarPreview, setEditUserAvatarPreview] = useState<string | null>(null);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // Pinned messages bar state
   const [pinnedExpanded, setPinnedExpanded] = useState(false);
@@ -461,6 +484,8 @@ export const DashboardLayout = () => {
             type: result.type,
             avatar: result.avatar,
             createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            unreadCount: 0,
             members: [],
           };
           setCurrentChat(tempChat);
@@ -837,7 +862,7 @@ export const DashboardLayout = () => {
     setEditGroupName(currentChat.name || '');
     setEditGroupDescription(currentChat.description || '');
     setEditGroupAvatar(null);
-    setEditGroupAvatarPreview(currentChat.avatar ? fixMinioUrl(currentChat.avatar) : null);
+    setEditGroupAvatarPreview(currentChat.avatar ? fixMinioUrl(currentChat.avatar) ?? null : null);
     setShowEditGroup(true);
   };
 
@@ -861,12 +886,16 @@ export const DashboardLayout = () => {
     setIsUpdatingGroup(true);
     try {
       const formData = new FormData();
-      formData.append('name', editGroupName.trim());
-      formData.append('description', editGroupDescription.trim());
+      // Use PascalCase field names to match backend DTO (UpdateChatDto)
+      formData.append('Name', editGroupName.trim());
+      formData.append('Description', editGroupDescription.trim());
       if (editGroupAvatar) {
-        formData.append('avatar', editGroupAvatar);
+        // 'file' matches the IFormFile parameter name in the backend controller
+        formData.append('file', editGroupAvatar);
+        console.log('[EditGroup] Appending avatar file:', editGroupAvatar.name, editGroupAvatar.size, 'bytes');
       }
 
+      console.log('[EditGroup] Sending update for chat:', currentChat.id, currentChat.type);
       await chatService.updateChat(currentChat.id, currentChat.type as 'group' | 'channel', formData);
 
       // Immediately update local state for instant UI feedback
@@ -875,16 +904,20 @@ export const DashboardLayout = () => {
         name: editGroupName.trim(),
         description: editGroupDescription.trim(),
         // Use the preview URL temporarily if avatar was changed
-        ...(editGroupAvatarPreview && editGroupAvatar ? { avatar: editGroupAvatarPreview } : {})
+        ...(editGroupAvatar && editGroupAvatarPreview ? { avatar: editGroupAvatarPreview } : {})
       };
+
+      // Update current chat for instant header/panel update
       setCurrentChat(updatedChat);
 
       // Close modal first for instant feedback
       setShowEditGroup(false);
 
-      // Then reload chats in background to get the correct data from server
+      // Reload chats list immediately to update sidebar, then reload profile in background
       loadChats();
-      loadGroupProfile(currentChat.id);
+      setTimeout(() => {
+        loadGroupProfile(currentChat.id);
+      }, 300);
     } catch (error) {
       console.error('Failed to update group:', error);
     } finally {
@@ -892,35 +925,148 @@ export const DashboardLayout = () => {
     }
   };
 
-  // Filter group members
-  const getFilteredMembers = () => {
-    if (!groupProfileData?.members) return { admin: [], moderator: [], member: [] };
-
-    let filtered = groupProfileData.members;
-    if (memberSearchQuery.trim()) {
-      const query = memberSearchQuery.toLowerCase();
-      filtered = filtered.filter((m: any) =>
-        m.user?.username?.toLowerCase().includes(query)
-      );
-    }
-
-    const grouped = { admin: [] as any[], moderator: [] as any[], member: [] as any[] };
-    filtered.forEach((m: any) => {
-      const role = m.role || 'member';
-      if (grouped[role as keyof typeof grouped]) {
-        grouped[role as keyof typeof grouped].push(m);
-      } else {
-        grouped.member.push(m);
-      }
-    });
-    return grouped;
+  // Reset create group/channel form
+  const resetCreateGroupForm = () => {
+    setCreateGroupName('');
+    setCreateGroupDescription('');
+    setCreateGroupAvatar(null);
+    setCreateGroupAvatarPreview(null);
+    setCreateGroupPrivacy('public');
   };
 
-  // Check if current user is admin of the group
-  const isGroupAdmin = () => {
-    if (!currentChat || !currentUser) return false;
-    const member = currentChat.members?.find(m => (m.userId || m.id) === currentUser.id);
-    return member?.role === 'admin' || currentChat.createdById === currentUser.id;
+  // Handle create group avatar change
+  const handleCreateGroupAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCreateGroupAvatar(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCreateGroupAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Create group handler
+  const handleCreateGroup = async () => {
+    console.log('[DashboardLayout] handleCreateGroup called');
+    console.log('[DashboardLayout] createGroupName:', createGroupName);
+
+    if (!createGroupName.trim()) {
+      console.log('[DashboardLayout] Group name is empty, returning');
+      return;
+    }
+
+    setIsCreatingGroup(true);
+    try {
+      const formData = new FormData();
+      formData.append('Name', createGroupName.trim());
+      formData.append('Description', createGroupDescription.trim());
+      // Backend expects PrivacyType enum: "Public" or "Private" (capitalized)
+      formData.append('PrivacyType', createGroupPrivacy === 'public' ? 'Public' : 'Private');
+      if (createGroupAvatar) {
+        formData.append('file', createGroupAvatar);
+      }
+
+      // Log FormData contents
+      console.log('[DashboardLayout] FormData contents:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
+      }
+
+      console.log('[DashboardLayout] Calling chatService.createGroup...');
+      const newChat = await chatService.createGroup(formData);
+      console.log('[DashboardLayout] createGroup response:', newChat);
+
+      setShowCreateGroup(false);
+      resetCreateGroupForm();
+      await loadChats();
+      if (newChat) {
+        setCurrentChat(newChat);
+      }
+      console.log('[DashboardLayout] Group created successfully!');
+    } catch (error) {
+      console.error('[DashboardLayout] Failed to create group:', error);
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
+
+  // Create channel handler
+  const handleCreateChannel = async () => {
+    if (!createGroupName.trim()) return;
+
+    setIsCreatingGroup(true);
+    try {
+      const formData = new FormData();
+      formData.append('Name', createGroupName.trim());
+      formData.append('Description', createGroupDescription.trim());
+      // Backend expects PrivacyType enum: "Public" or "Private" (capitalized)
+      formData.append('PrivacyType', createGroupPrivacy === 'public' ? 'Public' : 'Private');
+      if (createGroupAvatar) {
+        formData.append('file', createGroupAvatar);
+      }
+
+      const newChat = await chatService.createChannel(formData);
+      setShowCreateChannel(false);
+      resetCreateGroupForm();
+      await loadChats();
+      if (newChat) {
+        setCurrentChat(newChat);
+      }
+    } catch (error) {
+      console.error('Failed to create channel:', error);
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
+
+  // Open edit profile modal
+  const handleOpenEditProfile = () => {
+    setEditUserUsername(currentUser?.username || '');
+    setEditUserBio(currentUser?.bio || '');
+    setEditUserAvatar(null);
+    setEditUserAvatarPreview(currentUser?.avatar ? fixMinioUrl(currentUser.avatar) ?? null : null);
+    setShowEditUserProfile(true);
+  };
+
+  // Handle edit profile avatar change
+  const handleEditProfileAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditUserAvatar(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditUserAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Save profile changes
+  const handleSaveProfileChanges = async () => {
+    if (!editUserUsername.trim()) return;
+
+    setIsUpdatingProfile(true);
+    try {
+      const formData = new FormData();
+      formData.append('Username', editUserUsername.trim());
+      // Backend expects "Description" not "Bio"
+      formData.append('Description', editUserBio.trim());
+      if (editUserAvatar) {
+        formData.append('file', editUserAvatar);
+      }
+
+      const updatedUser = await userService.updateProfile(formData);
+      if (updatedUser) {
+        useAuthStore.getState().setUser(updatedUser);
+      }
+      setShowEditUserProfile(false);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    } finally {
+      setIsUpdatingProfile(false);
+    }
   };
 
   return (
@@ -1129,6 +1275,30 @@ export const DashboardLayout = () => {
                 </div>
               ))
             )}
+          </div>
+
+          {/* Sidebar Footer - Settings Button */}
+          <div className={styles.sidebarFooter}>
+            <button
+              className={styles.settingsButton}
+              onClick={() => setShowSettings(true)}
+              type="button"
+            >
+              <div className={styles.userInfo}>
+                <div className={styles.userAvatar}>
+                  {currentUser?.avatar ? (
+                    <img src={fixMinioUrl(currentUser.avatar)} alt={currentUser.username} />
+                  ) : (
+                    getInitials(currentUser?.username || 'U')
+                  )}
+                </div>
+                <div className={styles.userDetails}>
+                  <span className={styles.userName}>{currentUser?.username || 'User'}</span>
+                  <span className={styles.userStatus}>Online</span>
+                </div>
+              </div>
+              <Settings size={18} strokeWidth={2} />
+            </button>
           </div>
         </aside>
 
@@ -1710,6 +1880,23 @@ export const DashboardLayout = () => {
         </aside>
       </div>
 
+      {/* Settings Panel */}
+      <SettingsPanel
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onCreateGroup={() => { resetCreateGroupForm(); setShowCreateGroup(true); }}
+        onCreateChannel={() => { resetCreateGroupForm(); setShowCreateChannel(true); }}
+        onEditProfile={handleOpenEditProfile}
+        onShowNotifications={() => setShowNotifications(true)}
+        onShowAdminPanel={() => setShowAdminPanel(true)}
+        onShowBlockedUsers={() => setShowBlockedUsersModal(true)}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleTheme}
+        onLogout={logout}
+        fancyAnimations={fancyAnimations}
+        onToggleFancyAnimations={toggleFancyAnimations}
+      />
+
       {/* User Profile Modal - Using redesigned component */}
       {userProfileUserId && (
         <UserProfileViewerModal
@@ -1728,6 +1915,7 @@ export const DashboardLayout = () => {
           onUnblockUser={(userId) => {
             handleUnblockUser(userId);
           }}
+          fancyAnimations={fancyAnimations}
         />
       )}
 
@@ -1756,6 +1944,7 @@ export const DashboardLayout = () => {
           onUpdatePrivacy={async (privacy) => {
             await handleUpdatePrivacy(privacy);
           }}
+          fancyAnimations={fancyAnimations}
         />
       )}
 
@@ -1784,9 +1973,34 @@ export const DashboardLayout = () => {
                   <X size={18} />
                 </button>
               </div>
-              <div className={styles.subModalContent} style={{ padding: '20px' }}>
+              <div className={styles.subModalContent} style={{ padding: '20px', position: 'relative' }}>
+                {/* Loading Overlay */}
+                {isUpdatingGroup && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    borderRadius: '0 0 12px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                    backdropFilter: 'blur(2px)',
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px',
+                      color: 'var(--dash-text)',
+                    }}>
+                      <Loader2 size={32} className={styles.spinner} style={{ color: 'var(--dash-primary)' }} />
+                      <span style={{ fontSize: '14px', fontWeight: 500 }}>Saving changes...</span>
+                    </div>
+                  </div>
+                )}
                 {/* Avatar Upload */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px', opacity: isUpdatingGroup ? 0.5 : 1, pointerEvents: isUpdatingGroup ? 'none' : 'auto' }}>
                   <div
                     style={{
                       width: '100px',
@@ -1798,10 +2012,10 @@ export const DashboardLayout = () => {
                       alignItems: 'center',
                       justifyContent: 'center',
                       overflow: 'hidden',
-                      cursor: 'pointer',
+                      cursor: isUpdatingGroup ? 'not-allowed' : 'pointer',
                       position: 'relative',
                     }}
-                    onClick={() => document.getElementById('editGroupAvatarInput')?.click()}
+                    onClick={() => !isUpdatingGroup && document.getElementById('editGroupAvatarInput')?.click()}
                   >
                     {editGroupAvatarPreview ? (
                       <img src={editGroupAvatarPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1837,7 +2051,7 @@ export const DashboardLayout = () => {
                 </div>
 
                 {/* Name Input */}
-                <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '16px', opacity: isUpdatingGroup ? 0.5 : 1 }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '6px' }}>
                     Name
                   </label>
@@ -1846,6 +2060,7 @@ export const DashboardLayout = () => {
                     value={editGroupName}
                     onChange={(e) => setEditGroupName(e.target.value)}
                     placeholder={`${currentChat.type === 'channel' ? 'Channel' : 'Group'} name`}
+                    disabled={isUpdatingGroup}
                     style={{
                       width: '100%',
                       padding: '10px 12px',
@@ -1855,12 +2070,13 @@ export const DashboardLayout = () => {
                       color: 'var(--dash-text)',
                       fontSize: '14px',
                       outline: 'none',
+                      cursor: isUpdatingGroup ? 'not-allowed' : 'text',
                     }}
                   />
                 </div>
 
                 {/* Description Input */}
-                <div style={{ marginBottom: '24px' }}>
+                <div style={{ marginBottom: '24px', opacity: isUpdatingGroup ? 0.5 : 1 }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '6px' }}>
                     Description
                   </label>
@@ -1869,6 +2085,7 @@ export const DashboardLayout = () => {
                     onChange={(e) => setEditGroupDescription(e.target.value)}
                     placeholder="Add a description..."
                     rows={3}
+                    disabled={isUpdatingGroup}
                     style={{
                       width: '100%',
                       padding: '10px 12px',
@@ -1879,12 +2096,13 @@ export const DashboardLayout = () => {
                       fontSize: '14px',
                       outline: 'none',
                       resize: 'none',
+                      cursor: isUpdatingGroup ? 'not-allowed' : 'text',
                     }}
                   />
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', opacity: isUpdatingGroup ? 0.5 : 1 }}>
                   <button
                     onClick={() => setShowEditGroup(false)}
                     disabled={isUpdatingGroup}
@@ -1897,7 +2115,7 @@ export const DashboardLayout = () => {
                       color: 'var(--dash-text)',
                       fontSize: '14px',
                       fontWeight: 500,
-                      cursor: 'pointer',
+                      cursor: isUpdatingGroup ? 'not-allowed' : 'pointer',
                     }}
                   >
                     Cancel
@@ -2094,111 +2312,695 @@ export const DashboardLayout = () => {
           }}
         />
       )}
-    </div>
-  );
-};
 
-// Member List Item Component
-interface MemberListItemProps {
-  member: any;
-  isCurrentUser: boolean;
-  isOnline: boolean;
-  lastSeen?: string;
-  canManage: boolean;
-  onViewProfile: () => void;
-  onManagePermissions?: () => void;
-  onKick?: () => void;
-  onBan?: () => void;
-}
-
-const MemberListItem: React.FC<MemberListItemProps> = ({
-  member,
-  isCurrentUser,
-  isOnline,
-  lastSeen,
-  canManage,
-  onViewProfile,
-  onManagePermissions,
-  onKick,
-  onBan,
-}) => {
-  const [showActions, setShowActions] = useState(false);
-  const actionsRef = useRef<HTMLDivElement>(null);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
-        setShowActions(false);
-      }
-    };
-    if (showActions) {
-      document.addEventListener('click', handleClickOutside);
-    }
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [showActions]);
-
-  return (
-    <div className={styles.memberListItem}>
-      <div className={styles.memberListItemMain} onClick={onViewProfile}>
-        <div className={styles.memberListItemAvatar}>
-          {member.user?.avatar ? (
-            <img src={fixMinioUrl(member.user.avatar)} alt={member.user?.username} />
-          ) : (
-            <span>{getInitials(member.user?.username || 'U')}</span>
-          )}
-          <div className={`${styles.memberListItemOnline} ${isOnline ? styles.online : ''}`} />
-        </div>
-        <div className={styles.memberListItemInfo}>
-          <span className={styles.memberListItemName}>
-            {member.user?.username || 'Unknown'}
-            {isCurrentUser && ' (You)'}
-          </span>
-          <span className={styles.memberListItemStatus}>
-            {isOnline ? 'Online' : lastSeen ? `Last seen ${formatLastSeen(lastSeen)}` : 'Offline'}
-          </span>
-        </div>
-      </div>
-      {canManage && !isCurrentUser && member.role !== 'admin' && (
-        <div className={styles.memberListItemActions} ref={actionsRef}>
-          <button
-            className={styles.memberActionBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowActions(!showActions);
-            }}
-            type="button"
+      {/* Create Group Modal */}
+      <AnimatePresence>
+        {showCreateGroup && (
+          <motion.div
+            className={styles.modalBackdrop}
+            style={{ zIndex: 1100 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => { if (!isCreatingGroup) { setShowCreateGroup(false); resetCreateGroupForm(); } }}
           >
-            <Settings size={14} />
-          </button>
-          {showActions && (
-            <div className={styles.memberActionsMenu}>
-              <button onClick={(e) => { e.stopPropagation(); onViewProfile(); setShowActions(false); }} type="button">
-                <Users size={12} />
-                View Profile
-              </button>
-              {onManagePermissions && (
-                <button onClick={(e) => { e.stopPropagation(); onManagePermissions(); setShowActions(false); }} type="button">
-                  <Shield size={12} />
-                  Manage Permissions
+            <motion.div
+              className={styles.subModal}
+              style={{ maxWidth: '420px', width: '90%' }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={styles.subModalHeader}>
+                <h3>Create Group</h3>
+                <button onClick={() => { if (!isCreatingGroup) { setShowCreateGroup(false); resetCreateGroupForm(); } }} type="button" disabled={isCreatingGroup}>
+                  <X size={18} />
                 </button>
-              )}
-              {onKick && (
-                <button onClick={(e) => { e.stopPropagation(); onKick(); setShowActions(false); }} type="button">
-                  <Trash2 size={12} />
-                  Remove
+              </div>
+              <div className={styles.subModalContent} style={{ padding: '20px', position: 'relative' }}>
+                {isCreatingGroup && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    borderRadius: '0 0 12px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                    backdropFilter: 'blur(2px)',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: 'var(--dash-text)' }}>
+                      <Loader2 size={32} className={styles.spinner} style={{ color: 'var(--dash-primary)' }} />
+                      <span style={{ fontSize: '14px', fontWeight: 500 }}>Creating group...</span>
+                    </div>
+                  </div>
+                )}
+                {/* Avatar Upload */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <div
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '50%',
+                      background: 'var(--dash-surface-elevated)',
+                      border: '2px solid var(--dash-border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      cursor: isCreatingGroup ? 'not-allowed' : 'pointer',
+                      position: 'relative',
+                    }}
+                    onClick={() => !isCreatingGroup && document.getElementById('createGroupAvatarInput')?.click()}
+                  >
+                    {createGroupAvatarPreview ? (
+                      <img src={createGroupAvatarPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Users size={32} strokeWidth={1.5} style={{ color: 'var(--dash-text-muted)' }} />
+                    )}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(0,0,0,0.6)',
+                      padding: '3px',
+                      textAlign: 'center',
+                      fontSize: '10px',
+                      color: 'var(--dash-text)',
+                    }}>
+                      Add Photo
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    id="createGroupAvatarInput"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleCreateGroupAvatarChange}
+                  />
+                </div>
+
+                {/* Name Input */}
+                <div style={{ marginBottom: '14px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '4px' }}>
+                    Group Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={createGroupName}
+                    onChange={(e) => setCreateGroupName(e.target.value)}
+                    placeholder="Enter group name"
+                    disabled={isCreatingGroup}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Description Input */}
+                <div style={{ marginBottom: '14px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '4px' }}>
+                    Description
+                  </label>
+                  <textarea
+                    value={createGroupDescription}
+                    onChange={(e) => setCreateGroupDescription(e.target.value)}
+                    placeholder="Add a description (optional)"
+                    rows={2}
+                    disabled={isCreatingGroup}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      outline: 'none',
+                      resize: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Privacy Toggle */}
+                <div style={{ marginBottom: '20px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '8px' }}>
+                    Privacy
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCreateGroupPrivacy('public')}
+                      disabled={isCreatingGroup}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        background: createGroupPrivacy === 'public' ? 'var(--dash-primary)' : 'var(--dash-surface)',
+                        border: `1px solid ${createGroupPrivacy === 'public' ? 'var(--dash-primary)' : 'var(--dash-border)'}`,
+                        borderRadius: '8px',
+                        color: createGroupPrivacy === 'public' ? '#fff' : 'var(--dash-text)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Public
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreateGroupPrivacy('private')}
+                      disabled={isCreatingGroup}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        background: createGroupPrivacy === 'private' ? 'var(--dash-primary)' : 'var(--dash-surface)',
+                        border: `1px solid ${createGroupPrivacy === 'private' ? 'var(--dash-primary)' : 'var(--dash-border)'}`,
+                        borderRadius: '8px',
+                        color: createGroupPrivacy === 'private' ? '#fff' : 'var(--dash-text)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Private
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => { setShowCreateGroup(false); resetCreateGroupForm(); }}
+                    disabled={isCreatingGroup}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateGroup}
+                    disabled={isCreatingGroup || !createGroupName.trim()}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: 'var(--dash-primary)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: isCreatingGroup || !createGroupName.trim() ? 'not-allowed' : 'pointer',
+                      opacity: isCreatingGroup || !createGroupName.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    Create Group
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Channel Modal */}
+      <AnimatePresence>
+        {showCreateChannel && (
+          <motion.div
+            className={styles.modalBackdrop}
+            style={{ zIndex: 1100 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => { if (!isCreatingGroup) { setShowCreateChannel(false); resetCreateGroupForm(); } }}
+          >
+            <motion.div
+              className={styles.subModal}
+              style={{ maxWidth: '420px', width: '90%' }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={styles.subModalHeader}>
+                <h3>Create Channel</h3>
+                <button onClick={() => { if (!isCreatingGroup) { setShowCreateChannel(false); resetCreateGroupForm(); } }} type="button" disabled={isCreatingGroup}>
+                  <X size={18} />
                 </button>
-              )}
-              {onBan && (
-                <button onClick={(e) => { e.stopPropagation(); onBan(); setShowActions(false); }} type="button" className={styles.danger}>
-                  <Ban size={12} />
-                  Ban
+              </div>
+              <div className={styles.subModalContent} style={{ padding: '20px', position: 'relative' }}>
+                {isCreatingGroup && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    borderRadius: '0 0 12px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                    backdropFilter: 'blur(2px)',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: 'var(--dash-text)' }}>
+                      <Loader2 size={32} className={styles.spinner} style={{ color: 'var(--dash-primary)' }} />
+                      <span style={{ fontSize: '14px', fontWeight: 500 }}>Creating channel...</span>
+                    </div>
+                  </div>
+                )}
+                {/* Avatar Upload */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <div
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '50%',
+                      background: 'var(--dash-surface-elevated)',
+                      border: '2px solid var(--dash-border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      cursor: isCreatingGroup ? 'not-allowed' : 'pointer',
+                      position: 'relative',
+                    }}
+                    onClick={() => !isCreatingGroup && document.getElementById('createChannelAvatarInput')?.click()}
+                  >
+                    {createGroupAvatarPreview ? (
+                      <img src={createGroupAvatarPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Radio size={32} strokeWidth={1.5} style={{ color: 'var(--dash-text-muted)' }} />
+                    )}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(0,0,0,0.6)',
+                      padding: '3px',
+                      textAlign: 'center',
+                      fontSize: '10px',
+                      color: 'var(--dash-text)',
+                    }}>
+                      Add Photo
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    id="createChannelAvatarInput"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleCreateGroupAvatarChange}
+                  />
+                </div>
+
+                {/* Name Input */}
+                <div style={{ marginBottom: '14px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '4px' }}>
+                    Channel Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={createGroupName}
+                    onChange={(e) => setCreateGroupName(e.target.value)}
+                    placeholder="Enter channel name"
+                    disabled={isCreatingGroup}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Description Input */}
+                <div style={{ marginBottom: '14px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '4px' }}>
+                    Description
+                  </label>
+                  <textarea
+                    value={createGroupDescription}
+                    onChange={(e) => setCreateGroupDescription(e.target.value)}
+                    placeholder="Add a description (optional)"
+                    rows={2}
+                    disabled={isCreatingGroup}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      outline: 'none',
+                      resize: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Privacy Toggle */}
+                <div style={{ marginBottom: '20px', opacity: isCreatingGroup ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '8px' }}>
+                    Privacy
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCreateGroupPrivacy('public')}
+                      disabled={isCreatingGroup}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        background: createGroupPrivacy === 'public' ? 'var(--dash-primary)' : 'var(--dash-surface)',
+                        border: `1px solid ${createGroupPrivacy === 'public' ? 'var(--dash-primary)' : 'var(--dash-border)'}`,
+                        borderRadius: '8px',
+                        color: createGroupPrivacy === 'public' ? '#fff' : 'var(--dash-text)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Public
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreateGroupPrivacy('private')}
+                      disabled={isCreatingGroup}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        background: createGroupPrivacy === 'private' ? 'var(--dash-primary)' : 'var(--dash-surface)',
+                        border: `1px solid ${createGroupPrivacy === 'private' ? 'var(--dash-primary)' : 'var(--dash-border)'}`,
+                        borderRadius: '8px',
+                        color: createGroupPrivacy === 'private' ? '#fff' : 'var(--dash-text)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Private
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => { setShowCreateChannel(false); resetCreateGroupForm(); }}
+                    disabled={isCreatingGroup}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateChannel}
+                    disabled={isCreatingGroup || !createGroupName.trim()}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: 'var(--dash-primary)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: isCreatingGroup || !createGroupName.trim() ? 'not-allowed' : 'pointer',
+                      opacity: isCreatingGroup || !createGroupName.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    Create Channel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit User Profile Modal */}
+      <AnimatePresence>
+        {showEditUserProfile && (
+          <motion.div
+            className={styles.modalBackdrop}
+            style={{ zIndex: 1100 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => { if (!isUpdatingProfile) setShowEditUserProfile(false); }}
+          >
+            <motion.div
+              className={styles.subModal}
+              style={{ maxWidth: '420px', width: '90%' }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={styles.subModalHeader}>
+                <h3>Edit Profile</h3>
+                <button onClick={() => { if (!isUpdatingProfile) setShowEditUserProfile(false); }} type="button" disabled={isUpdatingProfile}>
+                  <X size={18} />
                 </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+              <div className={styles.subModalContent} style={{ padding: '20px', position: 'relative' }}>
+                {isUpdatingProfile && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    borderRadius: '0 0 12px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                    backdropFilter: 'blur(2px)',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: 'var(--dash-text)' }}>
+                      <Loader2 size={32} className={styles.spinner} style={{ color: 'var(--dash-primary)' }} />
+                      <span style={{ fontSize: '14px', fontWeight: 500 }}>Saving profile...</span>
+                    </div>
+                  </div>
+                )}
+                {/* Avatar Upload */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px', opacity: isUpdatingProfile ? 0.5 : 1 }}>
+                  <div
+                    style={{
+                      width: '90px',
+                      height: '90px',
+                      borderRadius: '50%',
+                      background: 'var(--dash-surface-elevated)',
+                      border: '2px solid var(--dash-border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      cursor: isUpdatingProfile ? 'not-allowed' : 'pointer',
+                      position: 'relative',
+                    }}
+                    onClick={() => !isUpdatingProfile && document.getElementById('editProfileAvatarInput')?.click()}
+                  >
+                    {editUserAvatarPreview ? (
+                      <img src={editUserAvatarPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <UserIcon size={36} strokeWidth={1.5} style={{ color: 'var(--dash-text-muted)' }} />
+                    )}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(0,0,0,0.6)',
+                      padding: '3px',
+                      textAlign: 'center',
+                      fontSize: '10px',
+                      color: 'var(--dash-text)',
+                    }}>
+                      Change Photo
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    id="editProfileAvatarInput"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleEditProfileAvatarChange}
+                  />
+                </div>
+
+                {/* Username Input */}
+                <div style={{ marginBottom: '14px', opacity: isUpdatingProfile ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '4px' }}>
+                    Username *
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserUsername}
+                    onChange={(e) => setEditUserUsername(e.target.value)}
+                    placeholder="Enter username"
+                    disabled={isUpdatingProfile}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Bio Input */}
+                <div style={{ marginBottom: '20px', opacity: isUpdatingProfile ? 0.5 : 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--dash-text-secondary)', marginBottom: '4px' }}>
+                    Bio
+                  </label>
+                  <textarea
+                    value={editUserBio}
+                    onChange={(e) => setEditUserBio(e.target.value)}
+                    placeholder="Tell us about yourself (optional)"
+                    rows={3}
+                    disabled={isUpdatingProfile}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      outline: 'none',
+                      resize: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => setShowEditUserProfile(false)}
+                    disabled={isUpdatingProfile}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: 'var(--dash-surface)',
+                      border: '1px solid var(--dash-border)',
+                      borderRadius: '8px',
+                      color: 'var(--dash-text)',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveProfileChanges}
+                    disabled={isUpdatingProfile || !editUserUsername.trim()}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: 'var(--dash-primary)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: isUpdatingProfile || !editUserUsername.trim() ? 'not-allowed' : 'pointer',
+                      opacity: isUpdatingProfile || !editUserUsername.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Notifications Modal */}
+      <AnimatePresence>
+        {showNotifications && (
+          <motion.div
+            className={styles.modalBackdrop}
+            style={{ zIndex: 1100 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowNotifications(false)}
+          >
+            <motion.div
+              className={styles.subModal}
+              style={{ maxWidth: '400px', width: '90%' }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={styles.subModalHeader}>
+                <h3>Notifications</h3>
+                <button onClick={() => setShowNotifications(false)} type="button">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className={styles.subModalContent} style={{ padding: '24px', textAlign: 'center' }}>
+                <Bell size={48} style={{ color: 'var(--dash-primary)', marginBottom: '16px' }} />
+                <p style={{ color: 'var(--dash-text-secondary)', fontSize: '14px' }}>
+                  No new notifications
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Admin Panel - Using existing component */}
+      <AdminPanel
+        isOpen={showAdminPanel}
+        onClose={() => setShowAdminPanel(false)}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* Blocked Users Modal - Using existing component */}
+      <BlockedUsersModal
+        isOpen={showBlockedUsersModal}
+        onClose={() => setShowBlockedUsersModal(false)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

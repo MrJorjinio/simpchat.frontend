@@ -6,7 +6,6 @@ import { useChatStore } from '../stores/chatStore';
 import { chatService } from '../services/chat.service';
 import { userService } from '../services/user.service';
 import { getInitials, fixMinioUrl } from '../utils/helpers';
-import { getBanErrorMessage, extractErrorMessage } from '../utils/errorHandler';
 import { AddMemberModal } from './ChatView';
 import { PermissionModal } from './modals/PermissionModal';
 // Toast removed - using visual feedback instead

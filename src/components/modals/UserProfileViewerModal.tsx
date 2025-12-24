@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, UserX, UserCheck, Ban, X, Calendar, Mail, Clock } from 'lucide-react';
+import { MessageCircle, UserX, UserCheck, Ban, X, Calendar, Mail } from 'lucide-react';
 import type { User } from '../../types/api.types';
 import { userService } from '../../services/user.service';
 import { useChatStore } from '../../stores/chatStore';
@@ -158,7 +158,7 @@ const modalVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { type: 'spring', damping: 25, stiffness: 300 }
+    transition: { type: 'spring' as const, damping: 25, stiffness: 300 }
   },
   exit: {
     opacity: 0,
@@ -184,7 +184,7 @@ const staggerItem = {
 // ============================================================================
 // MATRIX BACKGROUND COMPONENT
 // ============================================================================
-const MatrixBackground: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const MatrixBackground: React.FC<{ children: React.ReactNode; enabled?: boolean }> = ({ children, enabled = true }) => {
   const gridCols = 15;
   const gridRows = 12;
   const totalCells = gridCols * gridRows;
@@ -202,31 +202,33 @@ const MatrixBackground: React.FC<{ children: React.ReactNode }> = ({ children })
         border: `1px solid ${colors.border}`,
       }}
     >
-      {/* Matrix Grid Background */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'grid',
-          gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-          gridTemplateRows: `repeat(${gridRows}, 1fr)`,
-          gap: '3px',
-          padding: '12px',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      >
-        {Array.from({ length: totalCells }).map((_, i) => (
-          <div
-            key={i}
-            className="user-matrix-cell"
-            style={{ '--cell-index': i } as React.CSSProperties}
-          />
-        ))}
-      </div>
+      {/* Matrix Grid Background (only when enabled) */}
+      {enabled && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+            gridTemplateRows: `repeat(${gridRows}, 1fr)`,
+            gap: '3px',
+            padding: '12px',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        >
+          {Array.from({ length: totalCells }).map((_, i) => (
+            <div
+              key={i}
+              className="user-matrix-cell"
+              style={{ '--cell-index': i } as React.CSSProperties}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* Rain Drops */}
-      {Array.from({ length: rainDrops }).map((_, i) => (
+      {/* Rain Drops (only when enabled) */}
+      {enabled && Array.from({ length: rainDrops }).map((_, i) => (
         <div
           key={`rain-${i}`}
           className="user-matrix-rain"
@@ -256,6 +258,7 @@ interface UserProfileViewerModalProps {
   onSendMessage?: (userId: string) => void;
   onBlockUser?: (userId: string) => void;
   onUnblockUser?: (userId: string) => void;
+  fancyAnimations?: boolean;
 }
 
 // ============================================================================
@@ -268,6 +271,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
   onSendMessage,
   onBlockUser,
   onUnblockUser,
+  fancyAnimations = true,
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -511,7 +515,7 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                   animate="visible"
                 >
                   {/* Matrix Background with Avatar and Basic Info */}
-                  <MatrixBackground>
+                  <MatrixBackground enabled={fancyAnimations}>
                     <motion.div variants={staggerItem} style={{ textAlign: 'center' }}>
                       <div
                         className="user-avatar-wrapper"

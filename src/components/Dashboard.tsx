@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
 import { useThemeStore } from '../stores/themeStore';
+import { usePreferencesStore } from '../stores/preferencesStore';
 import { chatService } from '../services/chat.service';
 import api from '../services/api';
-import { extractErrorMessage, getBanErrorMessage, isBanError } from '../utils/errorHandler';
 import type { Chat, User } from '../types/api.types';
 import styles from './Dashboard.module.css';
 import AdminPanel from './AdminPanel';
@@ -15,7 +15,7 @@ import { UserProfileViewerModal } from './modals/UserProfileViewerModal';
 import { BlockedUsersModal } from './modals/BlockedUsersModal';
 import { Sidebar } from './Sidebar';
 import { ChatView } from './ChatView';
-import { SettingsMenu } from './SettingsMenu';
+import { SettingsPanel } from './SettingsPanel';
 import { RightPanel } from './RightPanel';
 import { getInitials, fixMinioUrl } from '../utils/helpers';
 // Toast removed - using visual feedback instead
@@ -788,6 +788,7 @@ const Dashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { chats, currentChat, isLoadingChats, messages, setMessages, onlineUsers } = useChatStore();
   const { theme, toggleTheme } = useThemeStore();
+  const { fancyAnimations, toggleFancyAnimations } = usePreferencesStore();
   const signalR = useSignalR();
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -1108,16 +1109,20 @@ const Dashboard: React.FC = () => {
   const handleCreateGroup = async (name: string, description: string, privacy: string, avatar?: File | null) => {
     try {
       const formData = new FormData();
-      formData.append('name', name);
-      if (description) {
-        formData.append('description', description);
-      }
-      // Backend expects: 0 = Public, 1 = Private
-      formData.append('privacyType', privacy === 'public' ? '0' : '1');
+      // Backend expects PascalCase field names to match DTO properties
+      formData.append('Name', name);
+      formData.append('Description', description || '');
+      // Backend expects PrivacyType enum: "Public" or "Private" (capitalized)
+      formData.append('PrivacyType', privacy === 'public' ? 'Public' : 'Private');
 
       // Add avatar if provided
       if (avatar) {
         formData.append('file', avatar);
+      }
+
+      console.log('[Dashboard] Creating group with FormData:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
       }
 
       await chatService.createGroup(formData);
@@ -1134,16 +1139,20 @@ const Dashboard: React.FC = () => {
   const handleCreateChannel = async (name: string, description: string, privacy: string, avatar?: File | null) => {
     try {
       const formData = new FormData();
-      formData.append('name', name);
-      if (description) {
-        formData.append('description', description);
-      }
-      // Backend expects: 0 = Public, 1 = Private
-      formData.append('privacyType', privacy === 'public' ? '0' : '1');
+      // Backend expects PascalCase field names to match DTO properties
+      formData.append('Name', name);
+      formData.append('Description', description || '');
+      // Backend expects PrivacyType enum: "Public" or "Private" (capitalized)
+      formData.append('PrivacyType', privacy === 'public' ? 'Public' : 'Private');
 
       // Add avatar if provided
       if (avatar) {
         formData.append('file', avatar);
+      }
+
+      console.log('[Dashboard] Creating channel with FormData:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
       }
 
       await chatService.createChannel(formData);
@@ -1160,17 +1169,20 @@ const Dashboard: React.FC = () => {
   const handleUpdateGroup = async (chatId: string, name: string, description: string, privacy: string, avatar?: File | null) => {
     try {
       const formData = new FormData();
-      formData.append('chatId', chatId);
-      formData.append('name', name);
-      if (description) {
-        formData.append('description', description);
-      }
-      // Backend expects: 0 = Public, 1 = Private
-      formData.append('privacyType', privacy === 'public' ? '0' : '1');
+      // Backend expects PascalCase field names to match DTO properties
+      formData.append('Name', name);
+      formData.append('Description', description || '');
+      // Backend expects PrivacyType enum: "Public" or "Private" (capitalized)
+      formData.append('PrivacyType', privacy === 'public' ? 'Public' : 'Private');
 
       // Add avatar if provided
       if (avatar) {
         formData.append('file', avatar);
+      }
+
+      console.log('[Dashboard] Updating group/channel with FormData:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
       }
 
       // Determine chat type from chatToEdit
@@ -1315,20 +1327,26 @@ const Dashboard: React.FC = () => {
   const handleUpdateProfile = async (username: string, _email: string, description: string, policy: string, avatar?: File | null) => {
     try {
       const formData = new FormData();
-      if (username) formData.append('username', username);
+      // Backend expects PascalCase field names to match DTO properties
+      if (username) formData.append('Username', username);
       // Note: Backend doesn't accept email updates in PUT /users/me
       // Always send description, even if empty, to avoid validation errors
-      formData.append('description', description || '');
+      formData.append('Description', description || '');
 
-      // Backend expects addChatMinLvl as: 0=Everyone, 1=WithConversations, 2=Nobody
-      let addChatMinLvl = '0'; // everyone
-      if (policy === 'chatted') addChatMinLvl = '1';
-      else if (policy === 'nobody') addChatMinLvl = '2';
-      formData.append('addChatMinLvl', addChatMinLvl);
+      // Backend expects AddChatMinLvl as enum: Everyone=0, WithConversations=1, Nobody=2
+      let addChatMinLvl = 'Everyone';
+      if (policy === 'chatted') addChatMinLvl = 'WithConversations';
+      else if (policy === 'nobody') addChatMinLvl = 'Nobody';
+      formData.append('AddChatMinLvl', addChatMinLvl);
 
       // Add avatar if provided
       if (avatar) {
         formData.append('file', avatar);
+      }
+
+      console.log('[Dashboard] Updating profile with FormData:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
       }
 
       const userService = await import('../services/user.service').then((m) => m.userService);
@@ -1753,40 +1771,20 @@ const Dashboard: React.FC = () => {
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         onlineUsers={onlineUsers}
       />
-      <SettingsMenu
+      <SettingsPanel
         isOpen={showMenu}
         onClose={() => setShowMenu(false)}
-        onCreateGroup={() => {
-          setShowCreateGroupModal(true);
-          setShowMenu(false);
-        }}
-        onCreateChannel={() => {
-          setShowCreateChannelModal(true);
-          setShowMenu(false);
-        }}
-        onCreateCustomReaction={() => {
-          setShowCustomReactionModal(true);
-          setShowMenu(false);
-        }}
-        onEditProfile={() => {
-          setShowProfileModal(true);
-          setShowMenu(false);
-        }}
-        onShowNotifications={() => {
-          setShowNotificationsModal(true);
-          setShowMenu(false);
-        }}
-        onShowAdminPanel={() => {
-          setShowAdminPanel(true);
-          setShowMenu(false);
-        }}
-        onShowBlockedUsers={() => {
-          setShowBlockedUsersModal(true);
-          setShowMenu(false);
-        }}
+        onCreateGroup={() => setShowCreateGroupModal(true)}
+        onCreateChannel={() => setShowCreateChannelModal(true)}
+        onEditProfile={() => setShowProfileModal(true)}
+        onShowNotifications={() => setShowNotificationsModal(true)}
+        onShowAdminPanel={() => setShowAdminPanel(true)}
+        onShowBlockedUsers={() => setShowBlockedUsersModal(true)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleTheme}
         onLogout={handleLogout}
+        fancyAnimations={fancyAnimations}
+        onToggleFancyAnimations={toggleFancyAnimations}
       />
       <ChatView
         currentChat={currentChat}
@@ -1925,6 +1923,7 @@ const Dashboard: React.FC = () => {
           onSendMessage={handleSendMessage}
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
+          fancyAnimations={fancyAnimations}
         />
       )}
 
@@ -1950,6 +1949,7 @@ const Dashboard: React.FC = () => {
             setViewingUserId(userId);
             setShowUserViewerModal(true);
           }}
+          fancyAnimations={fancyAnimations}
         />
       )}
 
@@ -1965,6 +1965,7 @@ const Dashboard: React.FC = () => {
           onSendMessage={handleSendMessage}
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
+          fancyAnimations={fancyAnimations}
         />
       )}
     </div>

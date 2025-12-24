@@ -127,7 +127,7 @@ const modalVariants = {
     scale: 1,
     y: 0,
     transition: {
-      type: 'spring',
+      type: 'spring' as const,
       damping: 25,
       stiffness: 400,
       mass: 0.8,
@@ -137,7 +137,7 @@ const modalVariants = {
     opacity: 0,
     scale: 0.9,
     y: 20,
-    transition: { duration: 0.15, ease: 'easeOut' }
+    transition: { duration: 0.15, ease: 'easeOut' as const }
   },
 };
 
@@ -147,7 +147,7 @@ const iconVariants = {
     scale: 1,
     rotate: 0,
     transition: {
-      type: 'spring',
+      type: 'spring' as const,
       damping: 15,
       stiffness: 400,
       delay: 0.1,

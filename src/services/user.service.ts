@@ -9,9 +9,16 @@ export const userService = {
   },
 
   updateProfile: async (formData: FormData) => {
+    console.log('[UserService] updateProfile called');
+    // Log FormData contents
+    console.log('[UserService] FormData contents:');
+    for (const [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value instanceof File ? `File(${value.name}, ${value.size} bytes)` : value);
+    }
     // Backend PUT /users/me returns NO user data, just success/failure
     // Don't set Content-Type header - axios will set it automatically with correct boundary
-    await api.put<any>('/users/me', formData);
+    const response = await api.put<any>('/users/me', formData);
+    console.log('[UserService] updateProfile response:', response);
     // Re-fetch user data to get updated profile
     return userService.getCurrentUser();
   },

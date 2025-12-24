@@ -505,6 +505,83 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* Sidebar Footer - User Profile & Settings */
+.sidebarFooter {
+  padding: 12px;
+  border-top: 1px solid var(--dash-border);
+  background: var(--dash-surface);
+}
+
+.settingsButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--dash-surface-elevated);
+  border: 1px solid var(--dash-border);
+  border-radius: 12px;
+  cursor: var(--cursor-pointer);
+  transition: all 0.2s ease;
+  color: var(--dash-text-secondary);
+}
+
+.settingsButton:hover {
+  background: var(--dash-surface-hover);
+  border-color: var(--dash-primary);
+  color: var(--dash-primary);
+}
+
+.settingsButton:hover .userStatus {
+  color: var(--dash-primary);
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settingsButton .userAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--dash-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-primary);
+  overflow: hidden;
+}
+
+.settingsButton .userAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.userName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+
+.userStatus {
+  font-size: 11px;
+  color: var(--dash-online);
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
 /* Chat Item */
 .chatItem {
   display: flex;

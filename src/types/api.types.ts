@@ -30,6 +30,7 @@ export interface User {
   bio?: string;
   onlineStatus: 'online' | 'offline' | 'away';
   lastSeen: string;
+  createdAt?: string;
   addMePolicy: 'everyone' | 'chatted' | 'nobody';
   isBlocked?: boolean;
 }

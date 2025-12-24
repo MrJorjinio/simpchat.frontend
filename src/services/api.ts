@@ -12,13 +12,20 @@ const api = axios.create({
   withCredentials: true, // Required because backend uses AllowCredentials
 });
 
-// Add token to requests
+// Add token to requests and handle FormData content type
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     console.log('[API] Adding token to request:', config.url, 'Token:', token.substring(0, 20) + '...');
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // If sending FormData, remove Content-Type header so browser sets it with correct boundary
+  if (config.data instanceof FormData) {
+    console.log('[API] FormData detected, removing Content-Type header for:', config.url);
+    delete config.headers['Content-Type'];
+  }
+
   return config;
 });
 

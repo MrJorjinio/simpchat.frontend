@@ -10,7 +10,7 @@ import { OnlineStatusIndicator } from './common/OnlineStatusIndicator';
 import { PinnedMessagesPanel } from './PinnedMessagesPanel';
 import { usePermissions } from '../hooks/usePermission';
 import { getInitials, formatTime, fixMinioUrl } from '../utils/helpers';
-import { extractErrorMessage, isUserBlockError, isBlockedByUser, getUserBlockErrorMessage } from '../utils/errorHandler';
+import { isUserBlockError, isBlockedByUser } from '../utils/errorHandler';
 // Toast removed - using visual feedback instead
 import { confirm } from './common/ConfirmModal';
 import styles from './Dashboard.module.css';
@@ -76,7 +76,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
     }, 300);
   };
 
-  const handleAddMember = async (userId: string, username: string) => {
+  const handleAddMember = async (userId: string, _username: string) => {
     setIsAdding(true);
     try {
       if (chatType === 'group') {
