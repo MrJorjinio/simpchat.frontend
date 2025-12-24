@@ -20,6 +20,8 @@ import {
   Settings,
   Bell,
   User as UserIcon,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
@@ -53,9 +55,8 @@ interface SearchResult {
 
 export const DashboardLayout = () => {
   const { user: currentUser, logout } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
-  const { fancyAnimations, toggleFancyAnimations } = usePreferencesStore();
-  const isDarkMode = theme === 'dark';
+  useThemeStore(); // Apply dark theme
+  const { fancyAnimations, toggleFancyAnimations, showChats, toggleShowChats } = usePreferencesStore();
 
   // Chat store connections
   const {
@@ -1141,7 +1142,7 @@ export const DashboardLayout = () => {
       {/* Main Content Wrapper */}
       <div className={styles.mainWrapper}>
         {/* Left Sidebar */}
-        <aside className={`${styles.sidebar} ${mobileSidebarOpen ? styles.open : ''}`}>
+        <aside className={`${styles.sidebar} ${mobileSidebarOpen ? styles.open : ''} ${!showChats ? styles.sidebarCollapsed : ''}`}>
           {/* Search Section */}
           <div className={styles.searchSection} ref={searchRef}>
             <div className={styles.searchContainer}>
@@ -1167,6 +1168,16 @@ export const DashboardLayout = () => {
                   </button>
                 )}
               </div>
+              {/* Toggle Chats Collapse Button */}
+              <button
+                className={styles.toggleChatsBtn}
+                onClick={toggleShowChats}
+                aria-label={showChats ? 'Collapse sidebar' : 'Expand sidebar'}
+                title={showChats ? 'Collapse sidebar' : 'Expand sidebar'}
+                type="button"
+              >
+                {showChats ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeft size={18} strokeWidth={2} />}
+              </button>
 
               {/* Search Results Dropdown */}
               {showSearchDropdown && (
@@ -1964,8 +1975,6 @@ export const DashboardLayout = () => {
         onShowNotifications={() => setShowNotifications(true)}
         onShowAdminPanel={() => setShowAdminPanel(true)}
         onShowBlockedUsers={() => setShowBlockedUsersModal(true)}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleTheme}
         onLogout={logout}
         fancyAnimations={fancyAnimations}
         onToggleFancyAnimations={toggleFancyAnimations}
@@ -3066,14 +3075,14 @@ export const DashboardLayout = () => {
       <AdminPanel
         isOpen={showAdminPanel}
         onClose={() => setShowAdminPanel(false)}
-        isDarkMode={isDarkMode}
+        isDarkMode={true}
       />
 
       {/* Blocked Users Modal - Using existing component */}
       <BlockedUsersModal
         isOpen={showBlockedUsersModal}
         onClose={() => setShowBlockedUsersModal(false)}
-        isDarkMode={isDarkMode}
+        isDarkMode={true}
       />
     </div>
   );

@@ -613,3 +613,235 @@
     width: 100%;
   }
 }
+
+@media (max-width: 480px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .modal {
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .header {
+    padding: 14px 16px;
+  }
+
+  .headerContent {
+    gap: 12px;
+  }
+
+  .headerIcon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+  }
+
+  .closeBtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .content {
+    padding: 14px 16px;
+  }
+
+  .userCard {
+    padding: 14px;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+  }
+
+  .userAvatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+
+  .userName {
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+
+  .roleBadge {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+
+  .permissionStats {
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .statNumber {
+    font-size: 16px;
+  }
+
+  .statLabel {
+    font-size: 10px;
+  }
+
+  .permissionsList {
+    gap: 16px;
+  }
+
+  .categoryHeader {
+    margin-bottom: 8px;
+  }
+
+  .categoryLabel {
+    font-size: 10px;
+  }
+
+  .categoryCount {
+    font-size: 10px;
+  }
+
+  .categoryItems {
+    gap: 6px;
+  }
+
+  .permissionItem {
+    padding: 10px 12px;
+    gap: 10px;
+    border-radius: 8px;
+  }
+
+  .permissionIcon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .permissionLabel {
+    font-size: 13px;
+  }
+
+  .permissionDescription {
+    font-size: 11px;
+  }
+
+  .toggleSwitch {
+    width: 44px;
+    height: 24px;
+  }
+
+  .toggleThumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  .toggleSwitch.on .toggleThumb {
+    transform: translateX(20px);
+  }
+
+  .footer {
+    padding: 12px 16px;
+    gap: 10px;
+  }
+
+  .footerInfo {
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .doneButton {
+    padding: 12px 20px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+
+  .skeletonItem {
+    padding: 10px 12px;
+  }
+
+  .skeletonIcon {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (max-width: 360px) {
+  .header {
+    padding: 12px 14px;
+  }
+
+  .headerIcon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .title {
+    font-size: 15px;
+  }
+
+  .content {
+    padding: 12px 14px;
+  }
+
+  .userCard {
+    padding: 12px;
+  }
+
+  .userAvatar {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .userName {
+    font-size: 14px;
+  }
+
+  .permissionItem {
+    padding: 8px 10px;
+  }
+
+  .permissionIcon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .permissionLabel {
+    font-size: 12px;
+  }
+
+  .permissionDescription {
+    font-size: 10px;
+  }
+
+  .toggleSwitch {
+    width: 40px;
+    height: 22px;
+  }
+
+  .toggleThumb {
+    width: 16px;
+    height: 16px;
+  }
+
+  .toggleSwitch.on .toggleThumb {
+    transform: translateX(18px);
+  }
+
+  .footer {
+    padding: 10px 14px;
+  }
+
+  .doneButton {
+    padding: 10px 16px;
+    font-size: 12px;
+  }
+}

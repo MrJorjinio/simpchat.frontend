@@ -469,13 +469,85 @@
 }
 
 /* ===== RESPONSIVE ===== */
-@media (max-width: 480px) {
+
+/* Tablet breakpoint */
+@media (max-width: 768px) {
   .authContainer {
-    padding: 16px;
+    padding: 24px 20px;
   }
 
   .authCard {
+    max-width: 400px;
+    padding: 32px 28px;
+  }
+
+  .orb1 {
+    width: 300px;
+    height: 300px;
+    top: -100px;
+    left: -100px;
+  }
+
+  .orb2 {
+    width: 280px;
+    height: 280px;
+  }
+
+  .orb3 {
+    width: 200px;
+    height: 200px;
+  }
+}
+
+/* Small tablet / large phone */
+@media (max-width: 640px) {
+  .authContainer {
+    padding: 20px 16px;
+  }
+
+  .authCard {
+    max-width: 100%;
     padding: 28px 24px;
+    border-radius: 18px;
+  }
+
+  .header {
+    margin-bottom: 28px;
+  }
+
+  .iconWrapper {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 18px;
+  }
+
+  .title {
+    font-size: 28px !important;
+  }
+
+  .subtitle {
+    font-size: 14px !important;
+  }
+
+  .form {
+    margin-bottom: 24px;
+  }
+
+  .inputGroup {
+    margin-bottom: 18px;
+  }
+}
+
+/* Mobile breakpoint */
+@media (max-width: 480px) {
+  .authContainer {
+    padding: 16px 12px;
+    align-items: flex-start;
+    padding-top: 10vh;
+  }
+
+  .authCard {
+    padding: 24px 20px;
     border-radius: 16px;
   }
 
@@ -484,25 +556,155 @@
     height: 56px;
   }
 
-  .iconWrapper span {
-    font-size: 28px;
+  .iconWrapper span,
+  .iconWrapper svg {
+    font-size: 26px;
+    width: 26px;
+    height: 26px;
   }
 
   .title {
-    font-size: 24px;
+    font-size: 24px !important;
+    letter-spacing: -0.3px;
   }
 
   .subtitle {
-    font-size: 14px;
+    font-size: 13px !important;
+  }
+
+  .label {
+    font-size: 13px;
   }
 
   .input {
     padding: 12px 14px;
     font-size: 16px; /* Prevent zoom on iOS */
+    border-radius: 10px;
+  }
+
+  .inputPassword {
+    padding-right: 44px;
+  }
+
+  .togglePassword {
+    right: 10px;
+    padding: 8px;
+  }
+
+  .forgotLink {
+    margin-bottom: 20px;
+  }
+
+  .forgotLink a {
+    font-size: 13px !important;
   }
 
   .submitBtn {
     padding: 12px 20px;
     min-height: 48px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+
+  .footer {
+    padding-top: 20px;
+  }
+
+  .footer p {
+    font-size: 13px !important;
+  }
+
+  .footer a {
+    font-size: 14px !important;
+  }
+
+  /* Error/Success alerts mobile */
+  .errorAlert,
+  .successAlert {
+    padding: 12px 14px;
+    margin-bottom: 20px;
+  }
+
+  .errorAlert p,
+  .successAlert p {
+    font-size: 13px;
+  }
+
+  /* OTP input mobile */
+  .otpInput {
+    font-size: 18px !important;
+    letter-spacing: 4px !important;
+  }
+
+  /* Back button mobile */
+  .backBtn {
+    padding: 6px 10px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  /* Verified badge mobile */
+  .verifiedBadge {
+    padding: 10px 14px;
+    margin-top: 14px;
+  }
+
+  .verifiedBadge p {
+    font-size: 13px;
+  }
+
+  /* Resend section mobile */
+  .resendSection {
+    padding-top: 20px;
+  }
+
+  .resendSection p {
+    font-size: 12px;
+  }
+
+  .resendBtn {
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  /* Hide background orbs on very small screens */
+  .orb1,
+  .orb2 {
+    opacity: 0.15;
+  }
+
+  .orb3 {
+    display: none;
+  }
+}
+
+/* Extra small phones */
+@media (max-width: 360px) {
+  .authContainer {
+    padding: 12px 10px;
+    padding-top: 8vh;
+  }
+
+  .authCard {
+    padding: 20px 16px;
+  }
+
+  .iconWrapper {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 14px;
+  }
+
+  .title {
+    font-size: 22px !important;
+  }
+
+  .input {
+    padding: 11px 12px;
+  }
+
+  .submitBtn {
+    min-height: 44px;
+    padding: 10px 16px;
   }
 }

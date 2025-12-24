@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Isometric 3D cube pattern -->
+
+  <!-- Row 1 - Top -->
+  <!-- Cube 1 (top center-left) -->
+  <polygon points="35,8 50,0 65,8 50,16" fill="#4ADE80"/>
+  <polygon points="35,8 50,16 50,28 35,20" fill="#22C55E"/>
+  <polygon points="50,16 65,8 65,20 50,28" fill="#111111"/>
+
+  <!-- Cube 2 (top center-right) -->
+  <polygon points="50,16 65,8 80,16 65,24" fill="#4ADE80"/>
+  <polygon points="50,16 65,24 65,36 50,28" fill="#22C55E"/>
+  <polygon points="65,24 80,16 80,28 65,36" fill="#111111"/>
+
+  <!-- Row 2 -->
+  <!-- Cube 3 (left) -->
+  <polygon points="20,24 35,16 50,24 35,32" fill="#4ADE80"/>
+  <polygon points="20,24 35,32 35,44 20,36" fill="#22C55E"/>
+  <polygon points="35,32 50,24 50,36 35,44" fill="#111111"/>
+
+  <!-- Cube 4 (center) -->
+  <polygon points="35,32 50,24 65,32 50,40" fill="#4ADE80"/>
+  <polygon points="35,32 50,40 50,52 35,44" fill="#22C55E"/>
+  <polygon points="50,40 65,32 65,44 50,52" fill="#111111"/>
+
+  <!-- Cube 5 (right) -->
+  <polygon points="50,40 65,32 80,40 65,48" fill="#4ADE80"/>
+  <polygon points="50,40 65,48 65,60 50,52" fill="#22C55E"/>
+  <polygon points="65,48 80,40 80,52 65,60" fill="#111111"/>
+
+  <!-- Row 3 -->
+  <!-- Cube 6 (far left) -->
+  <polygon points="5,40 20,32 35,40 20,48" fill="#4ADE80"/>
+  <polygon points="5,40 20,48 20,60 5,52" fill="#22C55E"/>
+  <polygon points="20,48 35,40 35,52 20,60" fill="#111111"/>
+
+  <!-- Cube 7 (center-left) -->
+  <polygon points="20,48 35,40 50,48 35,56" fill="#4ADE80"/>
+  <polygon points="20,48 35,56 35,68 20,60" fill="#22C55E"/>
+  <polygon points="35,56 50,48 50,60 35,68" fill="#111111"/>
+
+  <!-- Cube 8 (center-right) -->
+  <polygon points="35,56 50,48 65,56 50,64" fill="#4ADE80"/>
+  <polygon points="35,56 50,64 50,76 35,68" fill="#22C55E"/>
+  <polygon points="50,64 65,56 65,68 50,76" fill="#111111"/>
+
+  <!-- Cube 9 (far right) -->
+  <polygon points="65,56 80,48 95,56 80,64" fill="#4ADE80"/>
+  <polygon points="65,56 80,64 80,76 65,68" fill="#22C55E"/>
+  <polygon points="80,64 95,56 95,68 80,76" fill="#111111"/>
+
+  <!-- Row 4 - Bottom -->
+  <!-- Cube 10 (bottom left) -->
+  <polygon points="20,64 35,56 50,64 35,72" fill="#4ADE80"/>
+  <polygon points="20,64 35,72 35,84 20,76" fill="#22C55E"/>
+  <polygon points="35,72 50,64 50,76 35,84" fill="#111111"/>
+
+  <!-- Cube 11 (bottom right) -->
+  <polygon points="50,72 65,64 80,72 65,80" fill="#4ADE80"/>
+  <polygon points="50,72 65,80 65,92 50,84" fill="#22C55E"/>
+  <polygon points="65,80 80,72 80,84 65,92" fill="#111111"/>
+</svg>

@@ -7,8 +7,6 @@ import {
   Bell,
   UserX,
   Shield,
-  Sun,
-  Moon,
   LogOut,
   X,
   Sparkles,
@@ -106,6 +104,91 @@ const settingsStyles = `
     0%, 100% { box-shadow: 0 0 0 0 ${colors.emeraldGlow}; }
     50% { box-shadow: 0 0 20px 5px ${colors.emeraldGlow}; }
   }
+
+  /* Responsive Styles for Settings Panel */
+  @media (max-width: 768px) {
+    .settings-panel-main {
+      width: 85vw !important;
+      max-width: 340px !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .settings-panel-main {
+      width: 100% !important;
+      max-width: 100% !important;
+      border-right: none !important;
+    }
+    .settings-panel-main .settings-header {
+      padding: 16px !important;
+    }
+    .settings-panel-main .settings-header h2 {
+      font-size: 16px !important;
+    }
+    .settings-panel-main .settings-header p {
+      font-size: 11px !important;
+    }
+    .settings-panel-content {
+      padding: 16px 12px !important;
+    }
+    .settings-panel-main .menu-item {
+      padding: 10px 12px !important;
+    }
+    .settings-panel-main .menu-item-icon {
+      width: 34px !important;
+      height: 34px !important;
+    }
+    .settings-panel-main .menu-item-label {
+      font-size: 13px !important;
+    }
+    .settings-panel-main .toggle-switch {
+      padding: 12px 14px !important;
+    }
+    .settings-panel-main .toggle-icon {
+      width: 36px !important;
+      height: 36px !important;
+    }
+    .settings-panel-main .toggle-label {
+      font-size: 13px !important;
+    }
+    .settings-panel-main .toggle-track {
+      width: 46px !important;
+      height: 24px !important;
+    }
+    .settings-panel-main .toggle-thumb {
+      width: 18px !important;
+      height: 18px !important;
+    }
+    .settings-panel-footer {
+      padding: 14px 16px 20px !important;
+    }
+    .settings-panel-footer button {
+      padding: 12px !important;
+      font-size: 13px !important;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .settings-panel-main .settings-header {
+      padding: 14px 12px !important;
+    }
+    .settings-panel-main .settings-header h2 {
+      font-size: 15px !important;
+    }
+    .settings-panel-content {
+      padding: 14px 10px !important;
+    }
+    .settings-panel-main .menu-item {
+      padding: 8px 10px !important;
+    }
+    .settings-panel-main .menu-item-icon {
+      width: 32px !important;
+      height: 32px !important;
+    }
+    .settings-panel-footer {
+      padding: 12px 14px 18px !important;
+    }
+  }
 `;
 
 // Inject styles
@@ -128,8 +211,6 @@ export interface SettingsPanelProps {
   onShowNotifications: () => void;
   onShowAdminPanel: () => void;
   onShowBlockedUsers: () => void;
-  isDarkMode: boolean;
-  onToggleDarkMode: () => void;
   onLogout: () => void;
   fancyAnimations: boolean;
   onToggleFancyAnimations: () => void;
@@ -502,8 +583,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onShowNotifications,
   onShowAdminPanel,
   onShowBlockedUsers,
-  isDarkMode,
-  onToggleDarkMode,
   onLogout,
   fancyAnimations,
   onToggleFancyAnimations,
@@ -564,6 +643,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
           {/* Panel */}
           <motion.div
+            className="settings-panel-main"
             variants={panelVariants}
             initial="hidden"
             animate="visible"
@@ -601,6 +681,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Header */}
             <motion.div
+              className="settings-header"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.3 }}
@@ -730,21 +811,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   animate="visible"
                 >
                   <ToggleSwitch
-                    isOn={isDarkMode}
-                    onToggle={onToggleDarkMode}
-                    label={isDarkMode ? 'Dark Mode' : 'Light Mode'}
-                    icon={<Moon size={18} color="#fff" />}
-                    iconOff={<Sun size={18} color={colors.amber} />}
-                  />
-                </motion.div>
-
-                <motion.div
-                  custom={accountItems.length + createItems.length + 1}
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  <ToggleSwitch
                     isOn={fancyAnimations}
                     onToggle={onToggleFancyAnimations}
                     label="Fancy Animations"
@@ -759,6 +825,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Footer with Sign Out */}
             <motion.div
+              className="settings-panel-footer"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.3 }}

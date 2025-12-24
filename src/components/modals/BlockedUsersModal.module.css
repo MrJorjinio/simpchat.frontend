@@ -518,3 +518,193 @@
     width: 100%;
   }
 }
+
+@media (max-width: 480px) {
+  .overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-height: 90vh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .header {
+    padding: 16px 16px 14px;
+  }
+
+  .headerLeft {
+    gap: 12px;
+  }
+
+  .headerIcon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .headerIcon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .headerTitle {
+    font-size: 16px;
+  }
+
+  .headerCount {
+    min-width: 20px;
+    height: 20px;
+    font-size: 11px;
+    margin-left: 8px;
+  }
+
+  .headerSubtitle {
+    font-size: 12px;
+  }
+
+  .closeBtn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .body {
+    padding: 8px 16px 16px;
+  }
+
+  .userList {
+    gap: 8px;
+  }
+
+  .userCard {
+    padding: 10px 12px;
+    gap: 12px;
+    border-radius: 12px;
+  }
+
+  .userAvatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .userInitials {
+    font-size: 15px;
+  }
+
+  .userName {
+    font-size: 14px;
+  }
+
+  .userMeta {
+    font-size: 11px;
+  }
+
+  .blockedBadge {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .unblockBtn {
+    padding: 8px 10px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+
+  .footer {
+    padding: 12px 16px 14px;
+    gap: 10px;
+  }
+
+  .footerInfo {
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .footerBtn {
+    padding: 10px 18px;
+    font-size: 13px;
+  }
+
+  .emptyIcon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .emptyTitle {
+    font-size: 15px;
+  }
+
+  .emptyText {
+    font-size: 12px;
+    max-width: 240px;
+  }
+
+  .loadingState {
+    padding: 48px 16px;
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+  }
+
+  .loadingText {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 360px) {
+  .overlay {
+    padding: 8px;
+  }
+
+  .header {
+    padding: 14px 12px 12px;
+  }
+
+  .headerIcon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .headerTitle {
+    font-size: 15px;
+  }
+
+  .body {
+    padding: 6px 12px 12px;
+  }
+
+  .userCard {
+    padding: 8px 10px;
+    gap: 10px;
+  }
+
+  .userAvatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .userInitials {
+    font-size: 14px;
+  }
+
+  .userName {
+    font-size: 13px;
+  }
+
+  .unblockBtn {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .footer {
+    padding: 10px 12px 12px;
+  }
+
+  .footerBtn {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+}

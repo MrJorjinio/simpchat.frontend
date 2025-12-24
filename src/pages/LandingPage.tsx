@@ -2,7 +2,6 @@ import { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  MessageSquare,
   Shield,
   Users,
   Zap,
@@ -11,6 +10,7 @@ import {
   Bell,
   Sparkles
 } from 'lucide-react';
+import Logo from '../assets/logo.svg';
 
 // Custom hook for responsive breakpoints
 const useMediaQuery = (query: string) => {
@@ -332,11 +332,12 @@ const IsometricCube = ({
   </motion.div>
 );
 
-// Feature card component
+// Feature card component - Neo-Noir Tech aesthetic
 const FeatureCard = ({
   icon: Icon,
   title,
   description,
+  index,
 }: {
   icon: React.ElementType;
   title: string;
@@ -345,50 +346,129 @@ const FeatureCard = ({
 }) => {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-50px' }}
-      transition={{ duration: 0.5 }}
-      whileHover={{ y: -8, scale: 1.02 }}
+      initial={{ opacity: 0, y: 40, scale: 0.95 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: '-80px' }}
+      transition={{
+        duration: 0.6,
+        delay: index * 0.15,
+        ease: [0.25, 0.46, 0.45, 0.94]
+      }}
+      whileHover={{
+        y: -6,
+        transition: { duration: 0.3 }
+      }}
       style={{
         position: 'relative',
+        height: '100%',
       }}
     >
+      {/* Glow effect on hover */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        whileHover={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          position: 'absolute',
+          inset: '-1px',
+          borderRadius: '20px',
+          background: 'linear-gradient(135deg, rgba(74,222,128,0.3) 0%, rgba(16,185,129,0.1) 50%, rgba(20,184,166,0.3) 100%)',
+          filter: 'blur(8px)',
+          zIndex: 0,
+        }}
+      />
+
+      {/* Card container */}
       <div
         style={{
           position: 'relative',
-          overflow: 'hidden',
-          borderRadius: '1rem',
-          padding: '2rem',
+          zIndex: 1,
           height: '100%',
-          background: 'linear-gradient(145deg, rgba(20,20,20,0.95) 0%, rgba(10,10,10,0.98) 100%)',
-          border: '1px solid rgba(16,185,129,0.2)',
+          borderRadius: '20px',
+          padding: '32px',
+          background: 'linear-gradient(165deg, rgba(18,18,18,0.98) 0%, rgba(8,8,8,0.99) 100%)',
+          border: '1px solid rgba(74,222,128,0.15)',
+          backdropFilter: 'blur(10px)',
+          boxShadow: `
+            0 4px 24px -4px rgba(0,0,0,0.5),
+            inset 0 1px 0 0 rgba(255,255,255,0.03)
+          `,
         }}
       >
-        {/* Icon container */}
+        {/* Icon container with glow */}
         <div
           style={{
+            position: 'relative',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '3.5rem',
-            height: '3.5rem',
-            borderRadius: '0.75rem',
-            marginBottom: '1.5rem',
-            background: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(20,184,166,0.1) 100%)',
-            border: '1px solid rgba(16,185,129,0.3)',
+            width: '60px',
+            height: '60px',
+            borderRadius: '16px',
+            marginBottom: '28px',
+            background: 'linear-gradient(145deg, rgba(16,185,129,0.15) 0%, rgba(74,222,128,0.08) 100%)',
+            border: '1px solid rgba(74,222,128,0.25)',
+            boxShadow: `
+              0 0 20px -5px rgba(74,222,128,0.3),
+              inset 0 1px 0 0 rgba(255,255,255,0.05)
+            `,
           }}
         >
-          <Icon style={{ width: '1.75rem', height: '1.75rem', color: '#34d399' }} />
+          <Icon
+            style={{
+              width: '28px',
+              height: '28px',
+              color: '#4ADE80',
+              filter: 'drop-shadow(0 0 8px rgba(74,222,128,0.4))'
+            }}
+          />
         </div>
 
-        <h3 style={landingStyles.h3}>
+        {/* Title - using div to avoid any h3 global styles */}
+        <div
+          style={{
+            fontFamily: 'Syne, sans-serif',
+            color: '#ffffff',
+            fontSize: '22px',
+            fontWeight: 700,
+            letterSpacing: '-0.01em',
+            lineHeight: 1.4,
+            marginBottom: '16px',
+            paddingBottom: '4px',
+          }}
+        >
           {title}
-        </h3>
+        </div>
 
-        <p style={landingStyles.text}>
+        {/* Description */}
+        <div
+          style={{
+            fontFamily: '"DM Sans", sans-serif',
+            color: '#9ca3af',
+            fontSize: '15px',
+            lineHeight: 1.7,
+            letterSpacing: '0.01em',
+          }}
+        >
           {description}
-        </p>
+        </div>
+
+        {/* Decorative corner accent */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            width: '32px',
+            height: '32px',
+            opacity: 0.15,
+          }}
+        >
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 0h12v2H2v10H0V0z" fill="#4ADE80"/>
+            <path d="M32 32h-12v-2h10V20h2v12z" fill="#4ADE80"/>
+          </svg>
+        </div>
       </div>
     </motion.div>
   );
@@ -513,30 +593,15 @@ export const LandingPage = () => {
               textDecoration: 'none',
             }}
           >
-            <div
+            <img
+              src={Logo}
+              alt="Simpchat Logo"
               style={{
-                width: isMobile ? '2rem' : '2.5rem',
-                height: isMobile ? '2rem' : '2.5rem',
-                borderRadius: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)',
-                boxShadow: '0 0 20px rgba(16,185,129,0.4)',
+                width: isMobile ? '2.5rem' : '3rem',
+                height: isMobile ? '2.5rem' : '3rem',
+                filter: 'drop-shadow(0 0 10px rgba(74, 222, 128, 0.4))',
               }}
-            >
-              <MessageSquare style={{ width: isMobile ? '1rem' : '1.25rem', height: isMobile ? '1rem' : '1.25rem', color: '#ffffff' }} />
-            </div>
-            <span
-              style={{
-                fontSize: isMobile ? '1rem' : '1.25rem',
-                fontWeight: 700,
-                color: '#ffffff',
-                fontFamily: '"Syne", sans-serif',
-              }}
-            >
-              Simpchat
-            </span>
+            />
           </Link>
 
           {/* CTA buttons */}
@@ -782,56 +847,59 @@ export const LandingPage = () => {
                   <IsometricCube size={40} color="#14b8a6" delay={0.6} x={160} y={300} />
                 </div>
 
-                {/* Floating chat bubble */}
+                {/* Floating chat bubble - top right */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.6, delay: 0.8 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.8 }}
                   style={{
                     position: 'absolute',
-                    top: '25%',
-                    right: '2.5rem',
+                    top: '100px',
+                    right: '20px',
+                    zIndex: 10,
                   }}
                 >
                   <div
                     style={{
-                      padding: '1rem 1.5rem',
-                      borderRadius: '1rem',
-                      borderBottomRightRadius: '0.375rem',
-                      background: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(16,185,129,0.1) 100%)',
-                      border: '1px solid rgba(16,185,129,0.3)',
-                      backdropFilter: 'blur(10px)',
+                      padding: '12px 20px',
+                      borderRadius: '16px 16px 4px 16px',
+                      background: 'linear-gradient(135deg, rgba(16,185,129,0.25) 0%, rgba(16,185,129,0.15) 100%)',
+                      border: '1px solid rgba(16,185,129,0.4)',
+                      backdropFilter: 'blur(8px)',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#6ee7b7', margin: 0 }}>
+                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#6ee7b7' }}>
                       Hey! Welcome to Simpchat
-                    </p>
+                    </span>
                   </div>
                 </motion.div>
 
+                {/* Floating chat bubble - bottom left */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.6, delay: 1 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 1.1 }}
                   style={{
                     position: 'absolute',
-                    bottom: '25%',
-                    left: '2.5rem',
+                    bottom: '100px',
+                    left: '20px',
+                    zIndex: 10,
                   }}
                 >
                   <div
                     style={{
-                      padding: '1rem 1.5rem',
-                      borderRadius: '1rem',
-                      borderBottomLeftRadius: '0.375rem',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      backdropFilter: 'blur(10px)',
+                      padding: '12px 20px',
+                      borderRadius: '16px 16px 16px 4px',
+                      background: 'rgba(30, 41, 59, 0.8)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      backdropFilter: 'blur(8px)',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#cbd5e1', margin: 0 }}>
+                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#e2e8f0' }}>
                       Thanks! This is amazing
-                    </p>
+                    </span>
                   </div>
                 </motion.div>
               </div>
@@ -1023,31 +1091,14 @@ export const LandingPage = () => {
               gap: isMobile ? '1rem' : '1.5rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div
-                style={{
-                  width: '2rem',
-                  height: '2rem',
-                  borderRadius: '0.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)',
-                }}
-              >
-                <MessageSquare style={{ width: '1rem', height: '1rem', color: '#ffffff' }} />
-              </div>
-              <span
-                style={{
-                  fontSize: '1.125rem',
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  fontFamily: '"Syne", sans-serif',
-                }}
-              >
-                Simpchat
-              </span>
-            </div>
+            <img
+              src={Logo}
+              alt="Simpchat Logo"
+              style={{
+                width: '2.5rem',
+                height: '2.5rem',
+              }}
+            />
             <p style={{ fontSize: '0.875rem', color: '#64748b', margin: 0 }}>
               © {new Date().getFullYear()} Simpchat. All rights reserved.
             </p>

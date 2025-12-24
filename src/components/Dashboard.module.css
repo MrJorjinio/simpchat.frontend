@@ -148,6 +148,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.25s ease, min-width 0.25s ease;
 }
 
 /* ===== SEARCH SECTION - ULTRA MINIMAL ===== */
@@ -157,12 +158,17 @@
 
 .searchContainer {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
 }
 
 .searchWrapper {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1;
+  transition: opacity 0.2s ease, width 0.2s ease;
 }
 
 .searchIcon {
@@ -268,6 +274,35 @@
 .clearSearch svg {
   width: 14px;
   height: 14px;
+}
+
+/* Toggle Chats Button */
+.toggleChatsBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: 8px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--dash-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+}
+
+.toggleChatsBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--dash-primary);
+  color: var(--dash-primary);
+}
+
+.toggleChatsBtn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .clearSearch:hover {
@@ -485,6 +520,7 @@
 .chatList {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 4px 10px 10px;
 }
 
@@ -567,6 +603,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+  transition: opacity 0.2s ease, width 0.2s ease;
 }
 
 .userName {
@@ -666,6 +703,7 @@
 .chatInfo {
   flex: 1;
   min-width: 0;
+  transition: opacity 0.2s ease, width 0.2s ease;
 }
 
 .chatNameRow {
@@ -1100,6 +1138,410 @@
   .chatPreview {
     font-size: 12px;
   }
+
+  /* Mobile Header Enhancements */
+  .mobileHeader {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .mobileTitle {
+    font-size: 15px;
+    flex: 1;
+  }
+
+  .mobileMenuBtn {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* Chat Header Mobile */
+  .chatHeader {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .chatHeaderLeft {
+    gap: 10px;
+  }
+
+  .chatHeaderAvatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .chatHeaderName {
+    font-size: 14px;
+  }
+
+  .chatHeaderStatus {
+    font-size: 11px;
+  }
+
+  .chatHeaderBtn {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* Main Content Mobile */
+  .mainContent {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /* Messages Container Mobile */
+  .messagesContainer {
+    padding: 12px 10px;
+    gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .message {
+    max-width: 85%;
+    gap: 8px;
+    width: fit-content;
+  }
+
+  .message.own {
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  .messageAvatar {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
+
+  .messageBubble {
+    padding: 8px 10px;
+    border-radius: 12px 12px 12px 4px;
+  }
+
+  .message.own .messageBubble {
+    border-radius: 12px 12px 4px 12px;
+  }
+
+  .messageText {
+    font-size: 13px;
+  }
+
+  .messageSender {
+    font-size: 10px;
+  }
+
+  .messageTime {
+    font-size: 9px;
+  }
+
+  /* Message Reactions Mobile */
+  .messageReactions {
+    gap: 2px;
+    margin-top: 3px;
+  }
+
+  .reactionBadge {
+    padding: 2px 5px !important;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .reactionBadge span {
+    font-size: 9px;
+  }
+
+  /* Context Menu Reactions Mobile */
+  .contextReactions {
+    padding: 8px 10px;
+    gap: 1px;
+  }
+
+  .contextReactionBtn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  /* Message Footer Mobile */
+  .messageFooter {
+    gap: 3px;
+    margin-top: 1px;
+  }
+
+  /* Message Input Mobile */
+  .messageInputContainer {
+    padding: 10px 12px;
+  }
+
+  .messageInputRow {
+    gap: 6px;
+  }
+
+  .attachBtn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .attachBtn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .messageInput {
+    height: 40px;
+    min-height: 40px;
+    font-size: 16px; /* Prevent iOS zoom */
+    padding: 0 12px !important;
+    border-radius: 8px;
+  }
+
+  .sendBtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+  }
+
+  .sendBtn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Right Panel Mobile */
+  .rightPanelHeader {
+    padding: 14px 16px;
+  }
+
+  .rightPanelTitle {
+    font-size: 14px;
+  }
+
+  .rightPanelContent {
+    padding: 16px 14px;
+  }
+
+  .panelDetails {
+    padding: 24px 16px;
+  }
+
+  .panelAvatar {
+    width: 72px;
+    height: 72px;
+    margin-bottom: 16px;
+  }
+
+  .panelName {
+    font-size: 16px;
+  }
+
+  /* Search Dropdown Mobile */
+  .searchDropdown {
+    border-radius: 8px;
+  }
+
+  .searchResultItem {
+    padding: 10px 14px 10px 20px !important;
+    gap: 12px;
+  }
+
+  .resultAvatar {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .resultName {
+    font-size: 14px;
+  }
+
+  .resultUsername {
+    font-size: 12px;
+  }
+
+  /* Empty States Mobile */
+  .emptyState {
+    padding: 32px 16px;
+  }
+
+  .emptyStateIcon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+  }
+
+  .emptyStateIcon svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .emptyStateTitle {
+    font-size: 16px;
+  }
+
+  .emptyStateText {
+    font-size: 13px;
+    max-width: 260px;
+  }
+
+  /* Sidebar Footer Mobile */
+  .sidebarFooter {
+    padding: 10px;
+  }
+
+  .settingsButton {
+    padding: 8px 10px;
+  }
+
+  .settingsButton .userAvatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .userName {
+    font-size: 12px;
+  }
+
+  .userStatus {
+    font-size: 10px;
+  }
+
+  /* Context Menu Mobile */
+  .contextMenu {
+    min-width: 160px;
+    border-radius: 10px;
+  }
+
+  .contextMenuItem {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+
+/* Extra Small Phones */
+@media (max-width: 360px) {
+  .mobileHeader {
+    padding: 10px 12px;
+  }
+
+  .mobileMenuBtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .chatHeader {
+    padding: 8px 10px;
+  }
+
+  .chatHeaderAvatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .chatHeaderBtn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .messagesContainer {
+    padding: 10px 8px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .message {
+    max-width: 88%;
+    width: fit-content;
+  }
+
+  .message.own {
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  .messageAvatar {
+    width: 26px;
+    height: 26px;
+  }
+
+  .messageBubble {
+    padding: 6px 8px;
+  }
+
+  .messageText {
+    font-size: 12px;
+  }
+
+  .messageInputContainer {
+    padding: 8px 10px;
+  }
+
+  .attachBtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .messageInput {
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .sendBtn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .chatItem {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .chatAvatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .chatName {
+    font-size: 12px;
+  }
+
+  .chatPreview {
+    font-size: 11px;
+  }
+
+  .panelAvatar {
+    width: 64px;
+    height: 64px;
+  }
+
+  /* Message Reactions Extra Small */
+  .messageReactions {
+    gap: 1px;
+    margin-top: 2px;
+  }
+
+  .reactionBadge {
+    padding: 1px 4px !important;
+    border-radius: 6px;
+    font-size: 11px;
+  }
+
+  .reactionBadge span {
+    font-size: 8px;
+  }
+
+  /* Context Reactions Extra Small */
+  .contextReactions {
+    padding: 6px 8px;
+    gap: 0px;
+  }
+
+  .contextReactionBtn {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
 }
 
 /* ===== LOADING & EMPTY STATES ===== */
@@ -1133,6 +1575,102 @@
 .noMessages span {
   font-size: 14px;
   opacity: 0.7;
+}
+
+/* Collapsed Sidebar State */
+.sidebarCollapsed {
+  width: 72px !important;
+  min-width: 72px !important;
+  overflow-x: hidden !important;
+}
+
+.sidebarCollapsed .searchSection {
+  padding: 12px 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebarCollapsed .searchContainer {
+  width: 100%;
+  justify-content: center;
+}
+
+.sidebarCollapsed .searchWrapper {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+}
+
+.sidebarCollapsed .toggleChatsBtn {
+  width: 48px;
+  height: 48px;
+  margin-left: 0;
+  border-radius: 12px;
+}
+
+.sidebarCollapsed .chatList {
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden !important;
+}
+
+.sidebarCollapsed .chatItem {
+  width: 56px;
+  min-width: 56px;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 12px;
+  margin-bottom: 4px;
+}
+
+.sidebarCollapsed .chatAvatar {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  font-size: 14px;
+}
+
+.sidebarCollapsed .chatInfo {
+  display: none;
+}
+
+.sidebarCollapsed .sidebarFooter {
+  padding: 12px 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebarCollapsed .settingsButton {
+  width: 56px;
+  justify-content: center;
+  padding: 8px;
+}
+
+.sidebarCollapsed .userInfo {
+  gap: 0;
+}
+
+.sidebarCollapsed .userDetails {
+  display: none;
+}
+
+.sidebarCollapsed .settingsButton > svg {
+  display: none;
+}
+
+.sidebarCollapsed .loadingChats,
+.sidebarCollapsed .noChats {
+  padding: 24px 8px;
+  width: 100%;
+}
+
+.sidebarCollapsed .loadingChats span,
+.sidebarCollapsed .noChats span {
+  display: none;
 }
 
 .spinner {
@@ -1815,7 +2353,8 @@
   background: rgba(255, 255, 255, 0.05);
   border: none;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
@@ -3413,20 +3952,176 @@
 }
 
 /* ===== RESPONSIVE FOR MODALS ===== */
+
+/* Tablet breakpoint */
+@media (max-width: 768px) {
+  .userProfileModal,
+  .groupProfileModal {
+    max-width: 95%;
+    padding: 28px 20px;
+  }
+
+  .userProfileAvatar {
+    width: 90px;
+    height: 90px;
+  }
+
+  .groupProfileAvatar {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* Mobile breakpoint */
 @media (max-width: 480px) {
   .userProfileModal,
   .groupProfileModal {
     margin: 10px;
     padding: 24px 16px;
+    border-radius: 14px;
   }
 
   .userProfileAvatar {
     width: 80px;
     height: 80px;
+    margin-bottom: 14px;
+  }
+
+  .userProfileName {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  .userProfileUsername {
+    font-size: 13px;
+  }
+
+  .userProfileBio {
+    font-size: 13px;
+    margin-bottom: 16px;
   }
 
   .groupProfileAvatar {
     width: 72px;
     height: 72px;
+    margin-bottom: 12px;
+  }
+
+  .groupProfileName {
+    font-size: 18px;
+  }
+
+  .groupProfileDescription {
+    font-size: 13px;
+  }
+
+  .profileAction {
+    padding: 10px 18px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .profileStats {
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .profileStatValue {
+    font-size: 18px;
+  }
+
+  .profileStatLabel {
+    font-size: 11px;
+  }
+
+  .memberList {
+    gap: 8px;
+  }
+
+  .memberCard {
+    padding: 10px 12px;
+  }
+
+  .memberCardAvatar {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .memberCardName {
+    font-size: 13px;
+  }
+
+  .memberCardRole {
+    font-size: 11px;
+  }
+
+  .memberActions {
+    gap: 6px;
+  }
+
+  .memberActionBtn {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* Extra small phones */
+@media (max-width: 360px) {
+  .userProfileModal,
+  .groupProfileModal {
+    margin: 8px;
+    padding: 20px 14px;
+    border-radius: 12px;
+  }
+
+  .userProfileAvatar {
+    width: 70px;
+    height: 70px;
+  }
+
+  .userProfileName {
+    font-size: 16px;
+  }
+
+  .groupProfileAvatar {
+    width: 64px;
+    height: 64px;
+  }
+
+  .groupProfileName {
+    font-size: 16px;
+  }
+
+  .profileAction {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  .profileStatValue {
+    font-size: 16px;
+  }
+
+  .profileStatLabel {
+    font-size: 10px;
+  }
+
+  .memberCard {
+    padding: 8px 10px;
+  }
+
+  .memberCardAvatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .memberCardName {
+    font-size: 12px;
+  }
+
+  .memberActionBtn {
+    width: 28px;
+    height: 28px;
   }
 }

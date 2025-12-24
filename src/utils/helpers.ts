@@ -98,8 +98,8 @@ export const fixMinioUrl = (
   if (!url) return undefined;
   // Replace internal Docker hostname with network IP for browser access
   return url
-    .replace("simpchat.filestorage:9000", "localhost:9000")
-    .replace("localhost:9000", "localhost:9000");
+    .replace("simpchat.filestorage:9000", "10.30.13.110:9000")
+    .replace("10.30.13.110:9000", "10.30.13.110:9000");
 };
 
 export const formatLastSeen = (lastSeenISO: string): string => {
