@@ -498,6 +498,11 @@ export const DashboardLayout = () => {
   };
 
   const handleSelectChat = (chat: Chat) => {
+    // Don't overwrite if already on this chat (preserves enriched data from loadMessages)
+    if (currentChat?.id === chat.id) {
+      setMobileSidebarOpen(false);
+      return;
+    }
     setCurrentChat(chat);
     setMobileSidebarOpen(false);
   };
@@ -532,7 +537,14 @@ export const DashboardLayout = () => {
 
       // Get receiver ID for DM chats
       let receiverId: string | undefined;
-      if (currentChat.type === 'dm' && currentChat.members) {
+
+      // Check if this is a temporary DM chat (created from profile, not yet on backend)
+      const isTempChat = currentChat.id.startsWith('temp_dm_');
+      if (isTempChat) {
+        // Extract userId from temp chat id
+        receiverId = currentChat.id.replace('temp_dm_', '');
+        console.log('[DashboardLayout] Temp chat detected, using receiverId:', receiverId);
+      } else if (currentChat.type === 'dm' && currentChat.members) {
         const otherMember = currentChat.members.find(m =>
           (m.userId || m.id) !== currentUser?.id
         );
@@ -598,17 +610,22 @@ export const DashboardLayout = () => {
       if (chat.lastMessage.fileUrl && !content) {
         return '📎 Attachment';
       }
-      return truncateText(content, 40);
+      // If there's actual content, show it
+      if (content) {
+        return truncateText(content, 40);
+      }
     }
     return 'No messages yet';
   };
 
-  // Get time for chat item
+  // Get time for chat item - only show if there's a real last message
   const getChatTime = (chat: Chat): string => {
-    if (chat.lastMessage?.createdAt) {
+    // Only show time if there's an actual message (with content or file)
+    if (chat.lastMessage?.createdAt && (chat.lastMessage.content || chat.lastMessage.fileUrl)) {
       return formatTime(chat.lastMessage.createdAt);
     }
-    return formatTime(chat.updatedAt || chat.createdAt);
+    // Don't show time for empty chats or temp chats
+    return '';
   };
 
   // ===== ENHANCED USER PROFILE FUNCTIONS =====
@@ -690,13 +707,40 @@ export const DashboardLayout = () => {
         }
       }
 
-      // No existing DM found - create new one
-      const dm = await chatService.createOrGetDM(userId);
-      if (dm) {
-        setCurrentChat(dm);
-        await loadChats(); // Refresh to get the new chat in list
+      // No existing DM found - create temporary blank chat (no API call yet)
+      // The actual DM will be created when the first message is sent
+      console.log('[DashboardLayout] No existing DM found, creating temporary blank chat for:', userId);
+
+      // Fetch user info for the blank chat display
+      let userName = 'User';
+      let userAvatar: string | undefined;
+
+      try {
+        const userProfile = await userService.getUserProfile(userId);
+        userName = userProfile.username || 'User';
+        userAvatar = userProfile.avatar;
+        console.log('[DashboardLayout] Fetched user profile for blank chat:', userName);
+      } catch (error) {
+        console.error('[DashboardLayout] Failed to fetch user profile:', error);
       }
+
+      const blankChat: Chat = {
+        id: `temp_dm_${userId}`,
+        name: userName,
+        type: 'dm',
+        avatar: userAvatar,
+        description: '',
+        privacy: 'private',
+        members: [],
+        unreadCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      console.log('[DashboardLayout] Created blank chat:', blankChat.id, blankChat.name);
+      setCurrentChat(blankChat);
       setShowUserProfile(false);
+      setMobileSidebarOpen(false);
     } catch (error) {
       console.error('Failed to start conversation:', error);
       console.error('Failed to start conversation');
@@ -1445,7 +1489,7 @@ export const DashboardLayout = () => {
                     <span>No messages yet. Start the conversation!</span>
                   </div>
                 ) : (
-                  messages.map((msg) => (
+                  messages.map((msg, msgIndex) => (
                     <div
                       key={msg.messageId}
                       id={`msg-${msg.messageId}`}
@@ -1587,14 +1631,22 @@ export const DashboardLayout = () => {
                         </div>
 
                         {/* Context Menu */}
-                        {contextMenu?.messageId === msg.messageId && (
+                        {contextMenu?.messageId === msg.messageId && (() => {
+                          const isLastThreeMessages = msgIndex >= messages.length - 3;
+                          const menuWidth = 180;
+                          const menuHeight = 220;
+                          return (
                           <div
                             ref={contextMenuRef}
                             className={styles.contextMenu}
                             style={{
                               position: 'fixed',
-                              top: Math.min(contextMenu.y, window.innerHeight - 220),
-                              left: Math.min(contextMenu.x, window.innerWidth - 160),
+                              // Last 3 messages: open upward, others: open downward
+                              top: isLastThreeMessages
+                                ? Math.max(10, contextMenu.y - menuHeight)
+                                : Math.min(contextMenu.y, window.innerHeight - menuHeight - 10),
+                              // Always open to the left side (calculate directly to avoid flash)
+                              left: Math.max(10, contextMenu.x - menuWidth),
                             }}
                           >
                             {/* Quick Reactions */}
@@ -1634,7 +1686,8 @@ export const DashboardLayout = () => {
                               </button>
                             )}
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     </div>
                   ))

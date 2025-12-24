@@ -174,12 +174,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (chatId: string, receiverId: string | undefined, content: string, file?: File, replyId?: string) => {
     set({ error: null });
     try {
+      // Check if this is a temporary DM chat (not yet created on backend)
+      // If so, pass null for chatId and extract receiverId from the temp ID
+      const isTempChat = chatId && chatId.startsWith('temp_dm_');
+      const actualChatId = isTempChat ? null : chatId;
+      const actualReceiverId = isTempChat ? chatId.replace('temp_dm_', '') : receiverId;
+
+      console.log('[ChatStore] sendMessage - isTempChat:', isTempChat, 'actualChatId:', actualChatId, 'actualReceiverId:', actualReceiverId);
+
       if (file) {
         // File messages: use HTTP API (required for multipart/form-data)
         // Don't add to local state - SignalR will broadcast the full message
         const formData = new FormData();
-        if (chatId) formData.append('chatId', chatId);
-        if (receiverId) formData.append('receiverId', receiverId);
+        if (actualChatId) formData.append('chatId', actualChatId);
+        if (actualReceiverId) formData.append('receiverId', actualReceiverId);
         if (content) formData.append('content', content);
         if (replyId) formData.append('replyId', replyId);
         formData.append('file', file);
@@ -191,7 +199,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Note: SignalR will broadcast the message to all participants
         // The message will be received via handleReceiveMessage
         const signalRService = await import('../services/signalr.service').then(m => m.signalRService);
-        await signalRService.sendMessage(chatId, content, receiverId || undefined, replyId || null);
+        await signalRService.sendMessage(actualChatId, content, actualReceiverId || undefined, replyId || null);
         // Don't add to local state - let SignalR broadcast handle it
       }
     } catch (error: any) {
@@ -519,7 +527,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
           chat.id === message.chatId
             ? {
                 ...chat,
-                lastMessage: message.content || (message.fileUrl ? '📎 Attachment' : ''),
+                lastMessage: {
+                  id: message.messageId,
+                  chatId: message.chatId,
+                  senderId: message.senderId,
+                  sender: { id: message.senderId, username: message.senderUsername || 'Unknown' } as any,
+                  content: message.content || '',
+                  fileUrl: message.fileUrl,
+                  reactions: [],
+                  edited: false,
+                  createdAt: message.sentAt || new Date().toISOString(),
+                },
                 updatedAt: message.sentAt || new Date().toISOString(),
               }
             : chat

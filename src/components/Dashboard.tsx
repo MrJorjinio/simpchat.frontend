@@ -1588,20 +1588,32 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSendMessage = async (userId: string, message?: string) => {
+    console.log('[Dashboard] ========== handleSendMessage START ==========');
+    console.log('[Dashboard] userId:', userId);
+    console.log('[Dashboard] message:', message);
+    console.log('[Dashboard] selectedUser:', selectedUser);
+    console.log('[Dashboard] viewingUserId:', viewingUserId);
+
     try {
       if (!userId) {
-        console.error('Error: User ID not found');
+        console.error('[Dashboard] ERROR: User ID not found');
         return;
       }
 
-      console.log('[Dashboard] handleSendMessage called with userId:', userId, 'message:', message);
+      // Save user info BEFORE clearing state (could come from either modal)
+      let savedUserName = selectedUser?.username;
+      let savedUserAvatar = selectedUser?.avatar;
+      console.log('[Dashboard] Initial saved userName:', savedUserName, 'avatar:', savedUserAvatar);
 
-      // Close the profile modal first
+      // Close BOTH profile modals
       setShowUserProfileViewer(false);
       setSelectedUser(null);
       setSelectedSearchResult(null);
+      setShowUserViewerModal(false);
+      setViewingUserId(null);
 
       const chatStore = useChatStore.getState();
+      console.log('[Dashboard] Total chats in store:', chatStore.chats.length);
 
       // Try to find existing DM
       console.log('[Dashboard] Looking for existing DM with user:', userId);
@@ -1657,19 +1669,21 @@ const Dashboard: React.FC = () => {
 
       // If DM exists, open it
       if (dmChat) {
-        console.log('[Dashboard] Opening existing DM:', dmChat.id);
+        console.log('[Dashboard] Found existing DM, opening:', dmChat.id, dmChat.name);
         chatStore.setCurrentChat(dmChat);
+        console.log('[Dashboard] ========== handleSendMessage END (existing DM) ==========');
         return;
       }
 
       // No existing DM - create temporary blank chat
-      console.log('[Dashboard] No existing DM found, creating temporary blank chat for user:', userId);
+      console.log('[Dashboard] No existing DM found, will create temporary blank chat');
+      console.log('[Dashboard] Creating temp chat for userId:', userId);
 
-      // Get user info - either from selectedUser state or fetch it
-      let userName = selectedUser?.username || 'User';
-      let userAvatar = selectedUser?.avatar;
+      // Get user info - either from saved state or fetch it
+      let userName = savedUserName || 'User';
+      let userAvatar = savedUserAvatar;
 
-      if (!selectedUser) {
+      if (!savedUserName) {
         try {
           const userSvc = await import('../services/user.service').then((m) => m.userService);
           const userProfile = await userSvc.getUserProfile(userId);
@@ -1694,8 +1708,12 @@ const Dashboard: React.FC = () => {
         updatedAt: new Date().toISOString(),
       } as Chat;
 
-      console.log('[Dashboard] Setting current chat to blank:', blankChat.id);
+      console.log('[Dashboard] Created blankChat:', JSON.stringify(blankChat, null, 2));
+      console.log('[Dashboard] Setting current chat to blank chat...');
       chatStore.setCurrentChat(blankChat);
+      console.log('[Dashboard] Current chat set! Verifying...');
+      console.log('[Dashboard] chatStore.currentChat is now:', chatStore.currentChat?.id);
+      console.log('[Dashboard] ========== handleSendMessage END (new blank chat) ==========');
 
       // If message is provided, send it with receiverId to trigger backend auto-creation
       if (message && message.trim()) {
