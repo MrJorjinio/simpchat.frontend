@@ -564,7 +564,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
-  handleReactionAdded: (data: { messageId: string; reactionType: string; userId: string; chatId: string }) => {
+  handleReactionAdded: (data: { messageId: string; reactionType: string; userId: string; chatId: string; userName?: string }) => {
     console.log('[ChatStore] Reaction added event received:', data);
     const state = get();
     console.log('[ChatStore] Current messages count:', state.messages.length);
@@ -573,6 +573,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.log('[ChatStore] Found message:', foundMessage ? 'YES' : 'NO');
 
     if (foundMessage) {
+      // Get username - use provided userName, or get from auth store if it's current user
+      let userName = data.userName || '';
+      if (!userName && data.userId) {
+        const currentUser = useAuthStore.getState().user;
+        if (currentUser && currentUser.id === data.userId) {
+          userName = currentUser.username || 'You';
+        }
+      }
+
       set((state) => ({
         messages: state.messages.map(m =>
           m.messageId === data.messageId
@@ -580,13 +589,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 ...m,
                 messageReactions: [
                   ...(m.messageReactions || []),
-                  { reactionType: data.reactionType, userId: data.userId, userName: '' }
+                  { reactionType: data.reactionType, userId: data.userId, userName }
                 ]
               }
             : m
         ),
       }));
-      console.log('[ChatStore] Reaction added to message');
+      console.log('[ChatStore] Reaction added to message with userName:', userName);
     }
   },
 

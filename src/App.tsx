@@ -6,7 +6,6 @@ import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import Dashboard from './components/Dashboard';
 import { DashboardLayout } from './components/DashboardLayout';
 import { useAuthStore } from './stores/authStore';
 import { signalRService } from './services/signalr.service';
@@ -25,36 +24,26 @@ function AppRoutes() {
       {/* Landing Page */}
       <Route
         path="/"
-        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <LandingPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LandingPage />}
       />
 
       {/* Public Routes */}
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <LoginPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
       />
       <Route
         path="/register"
-        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <RegisterPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
       />
       <Route
         path="/forgot-password"
-        element={isAuthenticated ? <Navigate to="/dashboard-new" replace /> : <ForgotPasswordPage />}
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />}
       />
 
-      {/* Protected Routes */}
+      {/* Protected Dashboard */}
       <Route
         path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Dashboard Layout Preview (New Design) */}
-      <Route
-        path="/dashboard-new"
         element={
           <ProtectedRoute>
             <DashboardLayout />

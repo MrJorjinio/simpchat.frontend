@@ -40,7 +40,7 @@ import { BlockedUsersModal } from './modals/BlockedUsersModal';
 import AdminPanel from './AdminPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { confirm } from './common/ConfirmModal';
-import styles from '../styles/DashboardLayout.module.css';
+import styles from './Dashboard.module.css';
 
 // Search result type for combined search
 interface SearchResult {
