@@ -175,6 +175,58 @@ export const chatService = {
     return normalizedResults;
   },
 
+  searchGroupsPaginated: async (searchTerm: string, page: number = 1, pageSize: number = 10) => {
+    // Backend requires at least 3 characters
+    if (!searchTerm || searchTerm.length < 3) {
+      return { data: [], pageNumber: page, pageSize, totalCount: 0, hasNext: false, hasPrevious: false };
+    }
+    const response = await api.get<any>('/groups/search/paginated', {
+      params: { searchTerm, page, pageSize }
+    });
+    const result = response.data?.data || response.data;
+    const items = result.data || [];
+    return {
+      data: items.map((item: any) => ({
+        id: item.entityId || item.chatId || item.id,
+        chatId: item.chatId || item.entityId || item.id,
+        name: item.displayName || item.name || 'Unknown',
+        type: 'group' as const,
+        avatar: fixMinioUrl(item.avatarUrl || item.avatar),
+      })),
+      pageNumber: result.pageNumber || page,
+      pageSize: result.pageSize || pageSize,
+      totalCount: result.totalCount || 0,
+      hasNext: result.hasNext || false,
+      hasPrevious: result.hasPrevious || false
+    };
+  },
+
+  searchChannelsPaginated: async (searchTerm: string, page: number = 1, pageSize: number = 10) => {
+    // Backend requires at least 3 characters
+    if (!searchTerm || searchTerm.length < 3) {
+      return { data: [], pageNumber: page, pageSize, totalCount: 0, hasNext: false, hasPrevious: false };
+    }
+    const response = await api.get<any>('/channels/search/paginated', {
+      params: { searchTerm, page, pageSize }
+    });
+    const result = response.data?.data || response.data;
+    const items = result.data || [];
+    return {
+      data: items.map((item: any) => ({
+        id: item.entityId || item.chatId || item.id,
+        chatId: item.chatId || item.entityId || item.id,
+        name: item.displayName || item.name || 'Unknown',
+        type: 'channel' as const,
+        avatar: fixMinioUrl(item.avatarUrl || item.avatar),
+      })),
+      pageNumber: result.pageNumber || page,
+      pageSize: result.pageSize || pageSize,
+      totalCount: result.totalCount || 0,
+      hasNext: result.hasNext || false,
+      hasPrevious: result.hasPrevious || false
+    };
+  },
+
   banUser: async (chatId: string, userId: string) => {
     const response = await api.post<any>(`/chats/ban/${userId}`, null, {
       params: { chatId }

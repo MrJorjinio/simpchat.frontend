@@ -662,6 +662,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   style={{
                     width: '32px',
                     height: '32px',
+                    padding: 0,
                     borderRadius: '8px',
                     border: `1px solid ${colors.border}`,
                     background: colors.charcoal,

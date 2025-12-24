@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, UserX, UserCheck, Ban, X, Calendar, Mail } from 'lucide-react';
 import type { User } from '../../types/api.types';
@@ -280,29 +280,22 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
   const [theyBlockedMe, setTheyBlockedMe] = useState(false);
   const [isCheckingBlockStatus, setIsCheckingBlockStatus] = useState(false);
 
-  const { isUserOnline, getUserLastSeen, usersYouBlocked, blockedByUsers } = useChatStore();
+  // Track if user manually changed block status (so API response doesn't overwrite it)
+  const userChangedBlockStatus = useRef(false);
 
+  const { isUserOnline, getUserLastSeen } = useChatStore();
+
+  // Load profile and check block status when modal opens
   useEffect(() => {
     if (isOpen && userId) {
+      // Reset state when opening for a new user
+      userChangedBlockStatus.current = false;
+      setIBlockedThem(false);
+      setTheyBlockedMe(false);
       loadUserProfile();
       checkBlockStatus();
     }
   }, [isOpen, userId]);
-
-  // Subscribe to store's block status changes for real-time updates
-  useEffect(() => {
-    if (!isOpen || !userId) return;
-
-    const iBlockedInStore = usersYouBlocked.has(userId);
-    const blockedByInStore = blockedByUsers.has(userId);
-
-    if (iBlockedInStore !== iBlockedThem) {
-      setIBlockedThem(iBlockedInStore);
-    }
-    if (blockedByInStore !== theyBlockedMe) {
-      setTheyBlockedMe(blockedByInStore);
-    }
-  }, [isOpen, userId, usersYouBlocked, blockedByUsers]);
 
   const loadUserProfile = async () => {
     setIsLoading(true);
@@ -322,12 +315,13 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     setIsCheckingBlockStatus(true);
     try {
       const status = await userService.getMutualBlockStatus(userId);
-      setIBlockedThem(status.iBlockedThem);
+      // Only update if user hasn't manually changed the block status
+      if (!userChangedBlockStatus.current) {
+        setIBlockedThem(status.iBlockedThem);
+      }
       setTheyBlockedMe(status.theyBlockedMe);
     } catch (err) {
       console.error('[UserProfileViewer] Error checking block status:', err);
-      setIBlockedThem(false);
-      setTheyBlockedMe(false);
     } finally {
       setIsCheckingBlockStatus(false);
     }
@@ -352,8 +346,12 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     });
 
     if (confirmed) {
-      onBlockUser(userId);
+      // Mark that user manually changed block status
+      userChangedBlockStatus.current = true;
+      // Update UI immediately
       setIBlockedThem(true);
+      // Then do the API call
+      onBlockUser(userId);
     }
   };
 
@@ -370,8 +368,12 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
     });
 
     if (confirmed) {
-      onUnblockUser(userId);
+      // Mark that user manually changed block status
+      userChangedBlockStatus.current = true;
+      // Update UI immediately
       setIBlockedThem(false);
+      // Then do the API call
+      onUnblockUser(userId);
     }
   };
 
@@ -717,7 +719,9 @@ export const UserProfileViewerModal: React.FC<UserProfileViewerModalProps> = ({
                   {/* Block Status Banner */}
                   {!isCheckingBlockStatus && (theyBlockedMe || iBlockedThem) && (
                     <motion.div
-                      variants={staggerItem}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
                       style={{
                         padding: '14px 16px',
                         background: colors.dangerMuted,

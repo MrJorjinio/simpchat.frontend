@@ -642,6 +642,7 @@ const MemberCard: React.FC<{
                 style={{
                   width: 32,
                   height: 32,
+                  padding: 0,
                   borderRadius: 6,
                   background: colors.infoMuted,
                   border: 'none',
@@ -663,6 +664,7 @@ const MemberCard: React.FC<{
                 style={{
                   width: 32,
                   height: 32,
+                  padding: 0,
                   borderRadius: 6,
                   background: colors.warningMuted,
                   border: 'none',
@@ -684,6 +686,7 @@ const MemberCard: React.FC<{
                 style={{
                   width: 32,
                   height: 32,
+                  padding: 0,
                   borderRadius: 6,
                   background: colors.dangerMuted,
                   border: 'none',
@@ -937,6 +940,18 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
       variant: 'danger',
     });
     if (confirmed) {
+      // Add to banned users list immediately for instant UI feedback
+      if (member) {
+        const newBannedUser: BannedUser = {
+          userId: member.userId,
+          username: member.user.username,
+          avatarUrl: member.user.avatar,
+          bannedAt: new Date().toISOString(),
+        };
+        setBannedUsers(prev => [...prev, newBannedUser]);
+      }
+
+      // Remove from members list
       setProfile(prev => prev ? {
         ...prev,
         members: prev.members.filter(m => m.userId !== userId)
@@ -1161,6 +1176,7 @@ export const GroupProfileModal: React.FC<GroupProfileModalProps> = ({
                   style={{
                     width: 32,
                     height: 32,
+                    padding: 0,
                     borderRadius: 8,
                     background: colors.surfaceHover,
                     border: `1px solid ${colors.border}`,

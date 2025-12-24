@@ -163,19 +163,30 @@ export const RightPanel: React.FC<RightPanelProps> = ({ currentChat, onReloadCha
     if (!confirmed) return;
 
     setIsBlockingUser(true);
+    // Use optimistic UI - update store FIRST for immediate feedback
+    const wasBlocked = isUserBlocked;
+    if (wasBlocked) {
+      removeBlockedUser(otherUser.id);
+    } else {
+      addBlockedUser(otherUser.id);
+    }
+    setIsUserBlocked(!wasBlocked);
+
     try {
-      if (isUserBlocked) {
+      if (wasBlocked) {
         await userService.unblockUser(otherUser.id);
-        // Update store immediately for instant UI feedback
-        removeBlockedUser(otherUser.id);
       } else {
         await userService.blockUser(otherUser.id);
-        // Update store immediately for instant UI feedback
-        addBlockedUser(otherUser.id);
       }
-      setIsUserBlocked(!isUserBlocked);
     } catch (error) {
       console.error(`Failed to ${action} user:`, error);
+      // Rollback on error
+      if (wasBlocked) {
+        addBlockedUser(otherUser.id);
+      } else {
+        removeBlockedUser(otherUser.id);
+      }
+      setIsUserBlocked(wasBlocked);
     } finally {
       setIsBlockingUser(false);
     }

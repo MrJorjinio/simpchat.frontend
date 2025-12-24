@@ -367,11 +367,18 @@ export const DashboardLayout = () => {
     'Like': '👍', 'Love': '❤️', 'Laugh': '😂', 'Sad': '😢', 'Angry': '😡'
   };
 
-  // Debounced combined search (users, groups, channels)
+  // Debounced combined search (users, groups, channels) - requires 3+ characters
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
 
     if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    // Require at least 3 characters for search
+    if (query.trim().length < 3) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -384,14 +391,15 @@ export const DashboardLayout = () => {
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        // Search users and chats in parallel
-        const [users, chats] = await Promise.all([
-          userService.searchUsers(query).catch(() => []),
-          chatService.searchChats(query).catch(() => []),
+        // Search users, groups, and channels in parallel using paginated endpoints
+        const [usersResult, groupsResult, channelsResult] = await Promise.all([
+          userService.searchUsersPaginated(query, 1, 10).catch(() => ({ data: [] })),
+          chatService.searchGroupsPaginated(query, 1, 10).catch(() => ({ data: [] })),
+          chatService.searchChannelsPaginated(query, 1, 10).catch(() => ({ data: [] })),
         ]);
 
         // Transform users to SearchResult format
-        const userResults: SearchResult[] = users.map((u: User) => ({
+        const userResults: SearchResult[] = (usersResult.data || []).map((u: User) => ({
           id: u.id,
           name: u.username,
           type: 'user' as const,
@@ -399,23 +407,24 @@ export const DashboardLayout = () => {
           username: u.username,
         }));
 
-        // Transform chats to SearchResult format - EXCLUDE DM chats
-        const chatResults: SearchResult[] = chats
-          .filter((c: any) => {
-            // Filter out DM chats (type 0 or 'dm') - we only want groups and channels
-            const chatType = c.type || c.chatType;
-            return chatType !== 'dm' && chatType !== 0;
-          })
-          .map((c: any) => ({
-            id: c.id || c.entityId,
-            name: c.name || c.displayName,
-            type: (c.type === 'group' || c.chatType === 1) ? 'group' as const :
-                  (c.type === 'channel' || c.chatType === 2) ? 'channel' as const : 'group' as const,
-            avatar: c.avatar || c.avatarUrl,
-          }));
+        // Transform groups to SearchResult format
+        const groupResults: SearchResult[] = (groupsResult.data || []).map((g: any) => ({
+          id: g.id || g.chatId,
+          name: g.name,
+          type: 'group' as const,
+          avatar: g.avatar,
+        }));
+
+        // Transform channels to SearchResult format
+        const channelResults: SearchResult[] = (channelsResult.data || []).map((c: any) => ({
+          id: c.id || c.chatId,
+          name: c.name,
+          type: 'channel' as const,
+          avatar: c.avatar,
+        }));
 
         // Combine results
-        const combined: SearchResult[] = [...userResults, ...chatResults];
+        const combined: SearchResult[] = [...userResults, ...groupResults, ...channelResults];
 
         // Deduplicate by name+type (not just id) to avoid showing same name twice
         const seen = new Set<string>();
@@ -649,23 +658,31 @@ export const DashboardLayout = () => {
 
   const handleBlockUser = async (userId: string) => {
     // Confirmation already shown in UserProfileViewerModal
+    // Use optimistic UI - update store FIRST for immediate feedback
+    addBlockedUser(userId);
+    setIBlockedThem(true);
     try {
       await userService.blockUser(userId);
-      addBlockedUser(userId);
-      setIBlockedThem(true);
     } catch (error) {
       console.error('Failed to block user:', error);
+      // Rollback on error
+      removeBlockedUser(userId);
+      setIBlockedThem(false);
     }
   };
 
   const handleUnblockUser = async (userId: string) => {
     // Confirmation already shown in UserProfileViewerModal
+    // Use optimistic UI - update store FIRST for immediate feedback
+    removeBlockedUser(userId);
+    setIBlockedThem(false);
     try {
       await userService.unblockUser(userId);
-      removeBlockedUser(userId);
-      setIBlockedThem(false);
     } catch (error) {
       console.error('Failed to unblock user:', error);
+      // Rollback on error
+      addBlockedUser(userId);
+      setIBlockedThem(true);
     }
   };
 
@@ -1154,7 +1171,11 @@ export const DashboardLayout = () => {
               {/* Search Results Dropdown */}
               {showSearchDropdown && (
                 <div className={styles.searchDropdown}>
-                  {isSearching ? (
+                  {searchQuery.trim().length < 3 ? (
+                    <div className={styles.noResults}>
+                      <span>Type at least 3 characters to search</span>
+                    </div>
+                  ) : isSearching ? (
                     <div className={styles.noResults}>
                       <Loader2 size={18} className={styles.spinner} />
                       <span>Searching...</span>

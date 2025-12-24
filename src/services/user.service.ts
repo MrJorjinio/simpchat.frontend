@@ -31,6 +31,25 @@ export const userService = {
     return normalizeUsers(rawUsers);
   },
 
+  searchUsersPaginated: async (searchTerm: string, page: number = 1, pageSize: number = 10) => {
+    // Backend requires at least 3 characters
+    if (!searchTerm || searchTerm.length < 3) {
+      return { data: [], pageNumber: page, pageSize, totalCount: 0, hasNext: false, hasPrevious: false };
+    }
+    const response = await api.get<any>('/users/search', {
+      params: { searchTerm, page, pageSize }
+    });
+    const result = response.data?.data || response.data;
+    return {
+      data: normalizeUsers(result.data || []),
+      pageNumber: result.pageNumber || page,
+      pageSize: result.pageSize || pageSize,
+      totalCount: result.totalCount || 0,
+      hasNext: result.hasNext || false,
+      hasPrevious: result.hasPrevious || false
+    };
+  },
+
   getUserProfile: async (userId: string) => {
     const response = await api.get<any>(`/users/${userId}`);
     console.log('[UserService] getUserProfile raw response:', response.data);

@@ -20,10 +20,10 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // If not authenticated and init is complete, redirect to login
+  // If not authenticated and init is complete, redirect to landing page
   if (!isAuthenticated) {
-    console.warn('[ProtectedRoute] Not authenticated, redirecting to login');
-    return <Navigate to="/login" replace />;
+    console.warn('[ProtectedRoute] Not authenticated, redirecting to landing page');
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
