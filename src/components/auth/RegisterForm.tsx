@@ -86,7 +86,7 @@ export const RegisterForm = () => {
 
       if (state.token && state.user) {
         console.log('[RegisterForm] Auth state verified, navigating to dashboard...');
-        navigate('/dashboard-new');
+        navigate('/dashboard');
       } else {
         console.error('[RegisterForm] Registration completed but auth state not set!');
       }

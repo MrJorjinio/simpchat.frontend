@@ -33,11 +33,19 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || '';
+
+    // Don't auto-logout for auth endpoints (login, register, etc.)
+    const isAuthEndpoint = requestUrl.includes('/auth/') ||
+                           requestUrl.includes('/login') ||
+                           requestUrl.includes('/register');
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      // Only auto-logout for non-auth endpoints (e.g., expired token on protected routes)
       console.warn('[API] 401 Unauthorized - logging out user');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.location.href = '/';
     } else if (error.response?.status === 400) {
       console.error('[API] 400 Bad Request:', error.response?.data);
     }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthStore } from '../../stores/authStore';
+import { extractErrorMessage } from '../../utils/errorHandler';
 import { Eye, EyeOff, AlertCircle, ArrowRight, MessageSquare } from 'lucide-react';
 import styles from '../../styles/Auth.module.css';
 
@@ -12,9 +13,23 @@ export const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
+    // Prevent form submission and page refresh
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // Don't submit if already loading or fields are empty
+    if (isLoading || !credential || !password) {
+      return false;
+    }
+
+    // Clear any previous errors
     clearError();
+    setLocalError(null);
 
     try {
       console.log('[LoginForm] Starting login...');
@@ -29,14 +44,29 @@ export const LoginForm = () => {
 
       if (state.token && state.user) {
         console.log('[LoginForm] Auth state verified, navigating to dashboard...');
-        navigate('/dashboard-new');
+        navigate('/dashboard');
       } else {
         console.error('[LoginForm] Login completed but auth state not set!');
+        setLocalError('Login failed. Please try again.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[LoginForm] Login error:', err);
+      // Error should already be set in authStore, but set local error as backup
+      const errorMsg = extractErrorMessage(err, 'Login failed. Please try again.');
+      setLocalError(errorMsg);
     }
+
+    return false;
   };
+
+  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleSubmit();
+  };
+
+  // Combine store error and local error
+  const displayError = error || localError;
 
   return (
     <div className={styles.authContainer}>
@@ -56,15 +86,15 @@ export const LoginForm = () => {
         </div>
 
         {/* Error Alert */}
-        {error && (
+        {displayError && (
           <div className={styles.errorAlert}>
             <AlertCircle size={20} />
-            <p>{error}</p>
+            <p>{displayError}</p>
           </div>
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className={styles.form}>
+        <form onSubmit={handleSubmit} action="javascript:void(0);" className={styles.form}>
           {/* Email/Username Field */}
           <div className={styles.inputGroup}>
             <label htmlFor="credential" className={styles.label}>
@@ -116,7 +146,8 @@ export const LoginForm = () => {
 
           {/* Login Button */}
           <button
-            type="submit"
+            type="button"
+            onClick={handleButtonClick}
             disabled={isLoading || !credential || !password}
             className={styles.submitBtn}
           >
