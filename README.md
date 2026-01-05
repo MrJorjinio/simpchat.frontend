@@ -186,8 +186,8 @@ If you're learning full-stack development, exploring this repository chronologic
    - Use your credentials to log in
    - Receive a JWT token for authenticated sessions
 
-3. **Join a Chat Room**
-   - Browse available rooms or create a new one
+3. **Join a Chat**
+   - Browse available groups, channels or create a new one
    - Click to join and start chatting instantly
 
 4. **Send Messages**
@@ -195,7 +195,7 @@ If you're learning full-stack development, exploring this repository chronologic
    - Watch messages appear in real-time for all users
    - Enjoy seamless, lag-free conversations
 
-5. **Private Messaging** *(if enabled)*
+5. **Private Messaging**
    - Select a user to start a private conversation
    - Keep your chats personal and secure
 
